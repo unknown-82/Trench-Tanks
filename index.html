@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trench Tanks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<h1>Trench <span>Tanks</span></h1>
+<div id="app">
+
+  <!-- SCREEN 1: shared weapon pool, players draft one by one -->
+  <section id="selectScreen">
+    <div class="card">
+      <h2 id="draftPrompt">Player 1, choose your weapon</h2>
+      <div id="pickSummary" class="pickSummary"></div>
+      <button id="randomBtn" class="secondary" type="button">🎲 Random distribute</button>
+    </div>
+    <div id="weaponPool"></div>
+    <button id="startBtn" type="button" disabled>Start battle</button>
+  </section>
+
+  <!-- SCREEN 2: the match itself, hidden until weapons are chosen -->
+  <section id="gameScreen" style="display:none;">
+    <div id="stage">
+      <canvas id="c"></canvas>
+      <div id="banner">
+        <div id="bannerText"></div>
+        <button id="rematchBtn" class="secondary" type="button">Rematch (same weapons)</button>
+        <button id="restartBtn" class="secondary" type="button">Choose weapons again</button>
+      </div>
+    </div>
+
+    <div class="hud">
+      <div class="card" id="p1">
+        <h2>Player 1</h2>
+        <div class="score" id="scoreP1">0 pts</div>
+        <div class="healthbar"><i style="width:100%"></i></div>
+      </div>
+      <div class="card" id="windCard">
+        <h2>Wind</h2>
+        <div id="windVal" style="font-family:'Space Mono',monospace;font-size:1.1rem;">0</div>
+      </div>
+      <div class="card" id="p2">
+        <h2>Player 2</h2>
+        <div class="score" id="scoreP2">0 pts</div>
+        <div class="healthbar"><i style="width:100%"></i></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:10px;">
+      <h2><span id="turnFlag">Player 1's</span> turn</h2>
+      <div class="row">
+        <label for="weaponSelect">Weapon</label>
+        <select id="weaponSelect"></select>
+      </div>
+      <div class="row">
+        <label for="angle">Angle</label>
+        <input type="range" id="angle" min="0" max="180" value="45">
+        <span class="val" id="angleVal">45°</span>
+      </div>
+      <div class="row">
+        <label for="power">Power</label>
+        <input type="range" id="power" min="10" max="100" value="60">
+        <span class="val" id="powerVal">60</span>
+      </div>
+      <div id="controls">
+        <button id="fireBtn" type="button">Fire!</button>
+        <button id="newTerrainBtn" class="secondary" type="button">New terrain</button>
+      </div>
+    </div>
+    <p id="hint">Arrow keys ↑↓ adjust power, ←→ adjust angle, space fires.</p>
+  </section>
+
+</div>
+
+<script src="js/weapons.js"></script>
+<script src="js/terrain.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
