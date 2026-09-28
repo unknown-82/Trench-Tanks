@@ -1,0 +1,97 @@
+:root{
+  --sky-top:#2b1b3d; --sky-mid:#7a3b5e; --sky-bot:#e8794f;
+  --ground:#3c2a1e; --ground-dark:#241811;
+  --p1:#ff5c5c; --p1-dark:#a33232;
+  --p2:#4fb0ff; --p2-dark:#1f5c8f;
+  --ink:#fff6ec; --panel:#1b1220ee; --accent:#ffcf5c;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;}
+body{
+  background:#100a16; color:var(--ink);
+  font-family:'Rubik',sans-serif;
+  display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; min-height:100%;
+}
+h1{ font-size:clamp(1.3rem,4vw,2rem); margin:.6em 0 .3em; text-shadow:0 2px 0 #000; }
+h1 span{color:var(--accent);}
+#app{width:min(96vw,900px); margin-bottom:1em;}
+
+/* ---- weapon draft screen ---- */
+#selectScreen .card{margin-bottom:14px;}
+.pickSummary{font-family:'Space Mono',monospace; font-size:.8rem; opacity:.75; margin-top:4px;}
+.weaponCategory{margin-bottom:16px;}
+.weaponCategory h3{margin:0 0 2px; font-size:1rem;}
+.catBlurb{margin:0 0 8px; font-size:.8rem; opacity:.65;}
+.weaponGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px;}
+.weaponCard{
+  --wcolor:#fff; text-align:left; background:#ffffff0d; border:2px solid #ffffff22;
+  border-radius:10px; padding:10px 12px; color:var(--ink); cursor:pointer; font:inherit;
+  display:grid; grid-template-columns:34px 1fr; grid-template-rows:auto auto; gap:2px 10px;
+  position:relative; overflow:hidden;
+}
+.weaponCard::before{
+  content:''; position:absolute; inset:0 auto 0 0; width:4px; background:var(--wcolor);
+}
+.weaponCard .wicon{
+  grid-row:1 / 3; align-self:center; font-size:1.5rem; text-align:center;
+  filter:drop-shadow(0 0 4px color-mix(in srgb, var(--wcolor) 60%, transparent));
+}
+.weaponCard strong{color:var(--wcolor); grid-column:2;}
+.weaponCard .wdesc{font-size:.78rem; opacity:.75; grid-column:2;}
+.weaponCard:not(:disabled):hover{border-color:var(--wcolor); background:#ffffff1a;}
+.weaponCard.taken{opacity:.4; cursor:not-allowed; border-style:dashed;}
+#startBtn{
+  background:linear-gradient(180deg,var(--accent),#e0a52b); color:#2b1b00; border:none;
+  font-weight:900; font-size:1.05rem; border-radius:10px; padding:12px 26px; cursor:pointer;
+  box-shadow:0 3px 0 #8a6712; width:100%; margin-top:6px;
+}
+#startBtn:active{transform:translateY(2px); box-shadow:0 1px 0 #8a6712;}
+#startBtn:disabled{opacity:.4; cursor:not-allowed; box-shadow:none;}
+
+/* ---- game screen ---- */
+#stage{position:relative; width:100%; aspect-ratio:16/9; border-radius:10px; overflow:hidden;
+  box-shadow:0 10px 30px #000a, inset 0 0 0 2px #ffffff22;}
+canvas{display:block; width:100%; height:100%;}
+#banner{
+  position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+  background:#000a; font-size:clamp(1.2rem,5vw,2.2rem); font-weight:900; text-align:center;
+  flex-direction:column; gap:.6em;
+}
+.hud{display:flex; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap;}
+.card{background:var(--panel); border-radius:10px; padding:10px 14px; flex:1; min-width:200px; border:1px solid #ffffff1a;}
+.card h2{margin:0 0 6px; font-size:.85rem; font-weight:500; opacity:.8;}
+.score{font-family:'Space Mono',monospace; font-size:1rem; font-weight:700; color:var(--accent); margin-bottom:4px;}
+.healthbar{height:10px; border-radius:6px; background:#00000055; overflow:hidden;}
+.healthbar i{display:block; height:100%; transition:width .3s;}
+#p1 .healthbar i{background:linear-gradient(90deg,var(--p1-dark),var(--p1));}
+#p2 .healthbar i{background:linear-gradient(90deg,var(--p2-dark),var(--p2));}
+.row{display:flex; align-items:center; gap:8px; margin-top:8px; font-family:'Space Mono',monospace; font-size:.85rem;}
+.row label{width:52px; opacity:.8;}
+input[type=range]{flex:1; accent-color:var(--accent);}
+select#weaponSelect{
+  flex:1; background:#1b1220; color:var(--ink); border:1px solid #ffffff33;
+  border-radius:6px; padding:6px 8px; font:inherit; color-scheme:dark;
+}
+select#weaponSelect option{background:#1b1220; color:var(--ink);}
+.val{width:38px; text-align:right;}
+#controls{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;}
+#fireBtn{
+  background:linear-gradient(180deg,var(--accent),#e0a52b); color:#2b1b00; border:none;
+  font-weight:900; font-size:1.05rem; border-radius:10px; padding:0 26px; cursor:pointer;
+  box-shadow:0 3px 0 #8a6712;
+}
+#fireBtn:active{transform:translateY(2px); box-shadow:0 1px 0 #8a6712;}
+#fireBtn:disabled{opacity:.4; cursor:not-allowed; box-shadow:none;}
+#windCard{min-width:120px; flex:0 0 auto; text-align:center;}
+#turnFlag, #turnWeapon{font-weight:700;}
+button.secondary{
+  background:#ffffff14; color:var(--ink); border:1px solid #ffffff33; border-radius:8px;
+  padding:8px 16px; cursor:pointer; font:inherit; font-weight:700;
+}
+button.secondary:hover{background:#ffffff26;}
+#hint{opacity:.6; font-size:.8rem; margin-top:.6em; text-align:center; max-width:600px;}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
