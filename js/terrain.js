@@ -4,12 +4,14 @@ window.TT = window.TT || {};
 TT.Terrain = (function () {
   let W = 900, H = 506, heights = [];
 
-  function generate(width, height) {
+  // `rand` is a seeded generator (TT.Det.rng) so both online players get the same hills.
+  function generate(width, height, rand) {
+    rand = rand || Math.random;
     W = width; H = height;
     const segments = 10;
     const points = [];
     for (let i = 0; i <= segments; i++) {
-      points.push(H * 0.5 + Math.random() * H * 0.25);
+      points.push(H * 0.5 + rand() * H * 0.25);
     }
     heights = new Array(W);
     for (let x = 0; x < W; x++) {
