@@ -65,10 +65,7 @@ canvas{display:block; width:100%; height:100%;}
 .card{background:var(--panel); border-radius:10px; padding:10px 14px; flex:1; min-width:200px; border:1px solid #ffffff1a;}
 .card h2{margin:0 0 6px; font-size:.85rem; font-weight:500; opacity:.8;}
 .score{font-family:'Space Mono',monospace; font-size:1rem; font-weight:700; color:var(--accent); margin-bottom:4px;}
-.healthbar{height:10px; border-radius:6px; background:#00000055; overflow:hidden;}
-.healthbar i{display:block; height:100%; transition:width .3s;}
-#p1 .healthbar i{background:linear-gradient(90deg,var(--p1-dark),var(--p1));}
-#p2 .healthbar i{background:linear-gradient(90deg,var(--p2-dark),var(--p2));}
+.ammo{font-family:'Space Mono',monospace; font-size:.8rem; opacity:.75;}
 .row{display:flex; align-items:center; gap:8px; margin-top:8px; font-family:'Space Mono',monospace; font-size:.85rem;}
 .row label{width:52px; opacity:.8;}
 input[type=range]{flex:1; accent-color:var(--accent);}
@@ -95,3 +92,50 @@ button.secondary{
 button.secondary:hover{background:#ffffff26;}
 #hint{opacity:.6; font-size:.8rem; margin-top:.6em; text-align:center; max-width:600px;}
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+/* ---- online play ---- */
+[hidden]{display:none !important;}
+#onlineBar{margin-bottom:14px;}
+.onlineRow{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+.onlineBtns{display:flex; gap:8px; flex-wrap:wrap;}
+.netStatus{font-family:'Space Mono',monospace; font-size:.85rem; display:inline-flex; align-items:center; gap:8px;}
+.netStatus::before{content:''; width:10px; height:10px; border-radius:50%; background:#8a8a8a; flex:none;}
+.netStatus[data-state=waiting]::before{background:var(--accent); animation:netPulse 1.2s infinite;}
+.netStatus[data-state=connecting]::before{background:var(--p2); animation:netPulse .7s infinite;}
+.netStatus[data-state=connected]::before{background:#6ee07a;}
+.netStatus[data-state=disconnected]::before,
+.netStatus[data-state=error]::before{background:var(--p1);}
+.netStatus[data-state=disconnected],
+.netStatus[data-state=error]{color:#ffb3b3;}
+@keyframes netPulse{50%{opacity:.25;}}
+@media (prefers-reduced-motion:reduce){.netStatus::before{animation:none !important;}}
+.roomBox{display:flex; gap:8px; margin-top:10px;}
+.roomBox input, .chatForm input{
+  flex:1; min-width:0; background:#1b1220; color:var(--ink); border:1px solid #ffffff33;
+  border-radius:6px; padding:8px; font-family:'Space Mono',monospace; font-size:.8rem;
+}
+#chat{margin-top:10px;}
+.chatLog{height:120px; overflow-y:auto; font-size:.85rem; line-height:1.4; overflow-wrap:anywhere;
+  background:#00000033; border-radius:6px; padding:6px 8px;}
+.chatLine.system{opacity:.6; font-style:italic;}
+.chatForm{display:flex; gap:8px; margin-top:8px;}
+#bannerNote{margin:0; font-size:1rem; font-weight:500; opacity:.8;}
+#bannerNote:empty{display:none;}
+.weaponCard:disabled:not(.taken){cursor:not-allowed; opacity:.75;}
+input:disabled, select:disabled, button.secondary:disabled{opacity:.45; cursor:not-allowed;}
+
+/* ---- mode select screen ---- */
+.modeGrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px;}
+.modeCard{
+  background:var(--panel); border:2px solid #ffffff1a; border-radius:12px; padding:18px 14px;
+  color:var(--ink); font:inherit; text-align:center; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+}
+button.modeCard:hover{border-color:var(--accent); background:#2a1c30ee;}
+.botCard{cursor:default;}
+.modeIcon{font-size:2rem;}
+.modeCard strong{font-size:1.1rem;}
+.modeDesc{font-size:.8rem; opacity:.7;}
+.levelBtns{display:flex; gap:6px; margin-top:6px; width:100%;}
+.levelBtns button{flex:1; padding:8px 4px;}
+.draftBtns{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
