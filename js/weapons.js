@@ -46,10 +46,3 @@ TT.WEAPONS = [
 // Score value per category: how many points a fully accurate hit is worth.
 // Dirt movers score nothing since they're for reshaping terrain, not attack.
 TT.CATEGORY_MAX_POINTS = { shooter: 100, magic: 75, attacker: 50, dirt: 0 };
-
-// Not part of the draft pool - always available as a fallback so a player
-// who has used every drafted weapon can still take a turn.
-TT.FALLBACK_WEAPON = {
-  id: 'standard', icon: '🔵', name: 'Standard Shell', category: 'shooter',
-  radius: 30, damage: 35, desc: 'Unlimited backup round.'
-};
