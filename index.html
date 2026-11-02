@@ -80,7 +80,8 @@
       </div>
     </div>
 
-    <div class="hud">
+    <!-- DOCK: pinned to the bottom of the screen during a match -->
+    <div id="dock">
       <div class="card" id="p1">
         <h2>Player 1</h2>
         <div class="score" id="scoreP1">0 pts</div>
@@ -91,32 +92,31 @@
         <div class="score" id="scoreP2">0 pts</div>
         <div class="ammo" id="ammoP2"></div>
       </div>
+      <div class="card" id="aimPanel">
+        <h2><span id="turnFlag">Player 1's</span> turn · <span id="shotCount">Shot 1 of 20</span></h2>
+        <div class="row">
+          <label for="weaponSelect">Weapon</label>
+          <select id="weaponSelect"></select>
+        </div>
+        <div class="row">
+          <label for="angle">Angle</label>
+          <input type="range" id="angle" min="0" max="180" value="45">
+          <span class="val" id="angleVal">45°</span>
+        </div>
+        <div class="row">
+          <label for="power">Power</label>
+          <input type="range" id="power" min="10" max="100" value="60">
+          <span class="val" id="powerVal">60</span>
+        </div>
+        <div id="controls">
+          <button id="fireBtn" type="button">Fire!</button>
+          <button id="teleportBtn" class="secondary" type="button" title="Once per round: jump a short way left or right, then fire">✨ Teleport</button>
+          <button id="newTerrainBtn" class="secondary" type="button">New terrain</button>
+          <button class="secondary menuBtn" type="button">← Menu</button>
+        </div>
+        <p id="hint">Arrow keys ↑↓ adjust power, ←→ adjust angle, space fires, T teleports (once per round).</p>
+      </div>
     </div>
-
-    <div class="card" style="margin-top:10px;">
-      <h2><span id="turnFlag">Player 1's</span> turn · <span id="shotCount">Shot 1 of 20</span></h2>
-      <div class="row">
-        <label for="weaponSelect">Weapon</label>
-        <select id="weaponSelect"></select>
-      </div>
-      <div class="row">
-        <label for="angle">Angle</label>
-        <input type="range" id="angle" min="0" max="180" value="45">
-        <span class="val" id="angleVal">45°</span>
-      </div>
-      <div class="row">
-        <label for="power">Power</label>
-        <input type="range" id="power" min="10" max="100" value="60">
-        <span class="val" id="powerVal">60</span>
-      </div>
-      <div id="controls">
-        <button id="fireBtn" type="button">Fire!</button>
-        <button id="teleportBtn" class="secondary" type="button" title="Once per round: jump a short way left or right, then fire">✨ Teleport</button>
-        <button id="newTerrainBtn" class="secondary" type="button">New terrain</button>
-        <button class="secondary menuBtn" type="button">← Menu</button>
-      </div>
-    </div>
-    <p id="hint">Arrow keys ↑↓ adjust power, ←→ adjust angle, space fires, T teleports (once per round).</p>
   </section>
 
   <!-- CHAT: only shown in online games -->

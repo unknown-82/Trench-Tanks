@@ -10,6 +10,9 @@ TT.Game = (function () {
   const Det = TT.Det;
 
   let canvas, ctx;
+  // The world is always W×H (keeps shots identical online); the view scales it
+  // to fit the stage, bottom-anchored, and fills any spare room with scenery.
+  let view = { w: W, h: H, scale: 1, ox: 0, oy: 0, dpr: 1 };
   let players, current, gameOver;
   let projectiles = [], popups = [];
   let fires = [];             // Burner flames (visual only): { x, y, player?, until }
@@ -57,6 +60,7 @@ TT.Game = (function () {
     canvas = document.getElementById('c');
     ctx = canvas.getContext('2d');
     canvas.width = W; canvas.height = H;
+    new ResizeObserver(resizeCanvas).observe(canvas.parentElement);
 
     el = {
       modeScreen: document.getElementById('modeScreen'),
@@ -190,7 +194,8 @@ TT.Game = (function () {
     phase = p;
     el.modeScreen.style.display = p === 'menu' ? 'block' : 'none';
     el.selectScreen.style.display = p === 'draft' ? 'block' : 'none';
-    el.gameScreen.style.display = p === 'battle' ? 'block' : 'none';
+    el.gameScreen.style.display = p === 'battle' ? '' : 'none';
+    document.body.classList.toggle('battle', p === 'battle');
   }
 
   // ---- Mode select screen ----
@@ -429,27 +434,66 @@ TT.Game = (function () {
   }
 
   // ---- Rendering ----
+  function resizeCanvas() {
+    const box = canvas.parentElement.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const dpr = window.devicePixelRatio || 1;
+    const scale = Math.min(box.width / W, box.height / H);
+    view = { w: box.width, h: box.height, scale, dpr,
+      ox: (box.width - W * scale) / 2, oy: box.height - H * scale };
+    canvas.width = Math.round(box.width * dpr);
+    canvas.height = Math.round(box.height * dpr);
+    draw();
+  }
+
+  // Visible area in world coordinates (wider/taller than W×H on most screens).
+  function viewRect() {
+    const left = -view.ox / view.scale, top = -view.oy / view.scale;
+    return { left, top, right: left + view.w / view.scale, bottom: H };
+  }
+
   function drawSky() {
-    const g = ctx.createLinearGradient(0, 0, 0, H);
+    const r = viewRect();
+    const g = ctx.createLinearGradient(0, Math.min(0, r.top), 0, H);
     g.addColorStop(0, cssVar('--sky-top'));
     g.addColorStop(0.55, cssVar('--sky-mid'));
     g.addColorStop(1, cssVar('--sky-bot'));
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(r.left, r.top, r.right - r.left, H - r.top);
   }
 
   function drawTerrain() {
     const heights = Terrain.all();
+    const r = viewRect();
     ctx.beginPath();
-    ctx.moveTo(0, H);
+    ctx.moveTo(r.left, H);
+    ctx.lineTo(r.left, heights[0]);
     for (let x = 0; x < W; x++) ctx.lineTo(x, heights[x]);
-    ctx.lineTo(W, H);
+    ctx.lineTo(r.right, heights[W - 1]);
+    ctx.lineTo(r.right, H);
     ctx.closePath();
     const g = ctx.createLinearGradient(0, H * 0.4, 0, H);
     g.addColorStop(0, cssVar('--ground'));
     g.addColorStop(1, cssVar('--ground-dark'));
     ctx.fillStyle = g;
     ctx.fill();
+  }
+
+  // Shade the scenery outside the arena so it's clear shots there are lost.
+  function drawArenaEdges() {
+    const r = viewRect();
+    if (r.left >= 0) return;
+    ctx.fillStyle = 'rgba(10,6,16,0.22)';
+    ctx.fillRect(r.left, r.top, -r.left, H - r.top);
+    ctx.fillRect(W, r.top, r.right - W, H - r.top);
+    ctx.strokeStyle = 'rgba(255,246,236,0.12)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 8]);
+    ctx.beginPath();
+    ctx.moveTo(0, r.top); ctx.lineTo(0, H);
+    ctx.moveTo(W, r.top); ctx.lineTo(W, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
 
   function roundRect(x, y, w, h, r) {
@@ -578,8 +622,11 @@ TT.Game = (function () {
 
   function draw() {
     if (!players) return;
+    const { scale, dpr, ox, oy } = view;
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, ox * dpr, oy * dpr);
     drawSky();
     drawTerrain();
+    drawArenaEdges();
     players.forEach(drawTank);
     drawFires();
     drawProjectiles();

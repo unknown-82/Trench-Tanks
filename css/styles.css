@@ -1,5 +1,5 @@
 :root{
-  --sky-top:#2b1b3d; --sky-mid:#7a3b5e; --sky-bot:#e8794f;
+  --sky-top:#221a2e; --sky-mid:#583a50; --sky-bot:#9c604a;
   --ground:#3c2a1e; --ground-dark:#241811;
   --p1:#ff5c5c; --p1-dark:#a33232;
   --p2:#4fb0ff; --p2-dark:#1f5c8f;
@@ -55,13 +55,49 @@ h1 span{color:var(--accent);}
 /* ---- game screen ---- */
 #stage{position:relative; width:100%; aspect-ratio:16/9; border-radius:10px; overflow:hidden;
   box-shadow:0 10px 30px #000a, inset 0 0 0 2px #ffffff22;}
+#dock{display:grid; grid-template-columns:minmax(180px,1fr) minmax(320px,2.2fr) minmax(180px,1fr);
+  grid-template-areas:"p1 aim p2"; gap:10px; margin-top:10px;}
+#p1{grid-area:p1;} #p2{grid-area:p2;} #aimPanel{grid-area:aim;}
+#dock .card{min-width:0;}
+@media (max-width:760px){
+  #dock{grid-template-columns:1fr 1fr; grid-template-areas:"p1 p2" "aim aim"; gap:8px;}
+}
+
+/* ---- battle: game fills the whole window, controls pinned to the bottom ---- */
+body.battle{height:100vh; height:100dvh; min-height:0; overflow:hidden;}
+body.battle h1{margin:.25em 0 .2em; font-size:clamp(1rem,2.4vw,1.4rem);}
+body.battle #app{width:100%; flex:1; min-height:0; margin:0; padding:0 10px 10px;
+  display:flex; flex-direction:column;}
+body.battle #onlineBar{margin-bottom:8px; padding:6px 12px; flex:none;}
+body.battle #gameScreen{flex:1; min-height:0; display:flex; flex-direction:column;}
+body.battle #stage{flex:1; min-height:120px; aspect-ratio:auto;}
+body.battle #dock{flex:none; min-height:22vh; min-height:22dvh; align-items:stretch;}
+body.battle #chat{flex:none; margin-top:8px; padding:6px 12px;}
+body.battle #chat h2{display:none;}
+body.battle .chatLog{height:52px;}
+@media (max-width:760px), (max-height:600px){
+  body.battle #hint{display:none;}
+  body.battle .card{padding:6px 10px;}
+  body.battle .row{margin-top:4px;}
+  body.battle #controls{margin-top:6px;}
+}
+@media (max-height:500px){
+  body.battle h1{display:none;}
+  body.battle #app{padding-top:6px;}
+  body.battle #dock{min-height:0; gap:6px; margin-top:6px;
+    grid-template-columns:minmax(100px,.6fr) minmax(300px,2.6fr) minmax(100px,.6fr);
+    grid-template-areas:"p1 aim p2";}
+  body.battle .ammo{display:none;}
+  body.battle #aimPanel h2{margin-bottom:0;}
+  body.battle #controls{gap:6px;}
+  body.battle #controls button{padding:5px 12px; font-size:.85rem;}
+}
 canvas{display:block; width:100%; height:100%;}
 #banner{
   position:absolute; inset:0; display:none; align-items:center; justify-content:center;
   background:#000a; font-size:clamp(1.2rem,5vw,2.2rem); font-weight:900; text-align:center;
   flex-direction:column; gap:.6em;
 }
-.hud{display:flex; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap;}
 .card{background:var(--panel); border-radius:10px; padding:10px 14px; flex:1; min-width:200px; border:1px solid #ffffff1a;}
 .card h2{margin:0 0 6px; font-size:.85rem; font-weight:500; opacity:.8;}
 .score{font-family:'Space Mono',monospace; font-size:1rem; font-weight:700; color:var(--accent); margin-bottom:4px;}
@@ -89,7 +125,7 @@ button.secondary{
   padding:8px 16px; cursor:pointer; font:inherit; font-weight:700;
 }
 button.secondary:hover{background:#ffffff26;}
-#hint{opacity:.6; font-size:.8rem; margin-top:.6em; text-align:center; max-width:600px;}
+#hint{opacity:.6; font-size:.75rem; margin:.6em 0 0;}
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
 
 /* ---- online play ---- */
