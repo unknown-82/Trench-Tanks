@@ -3,7 +3,11 @@ window.TT = window.TT || {};
 TT.Game = (function () {
   "use strict";
   const GRAVITY = 260; // px/s^2
-  const W = 900, H = 506;
+  const H = 506;
+  // Arena width follows the screen's shape (set per round, same for both
+  // online players); never narrower than the classic 900.
+  const MIN_W = 900, MAX_W = 1800;
+  let W = MIN_W;
   const Terrain = TT.Terrain;
   const WEAPONS = TT.WEAPONS;
   const CATEGORIES = TT.CATEGORIES;
@@ -11,7 +15,7 @@ TT.Game = (function () {
 
   let canvas, ctx;
   // The world is always W×H (keeps shots identical online); the view scales it
-  // to fit the stage, bottom-anchored, and fills any spare room with scenery.
+  // to fit the stage above the floating aim panel and fills the rest with scenery.
   let view = { w: W, h: H, scale: 1, ox: 0, oy: 0, dpr: 1 };
   let players, current, gameOver;
   let projectiles = [], popups = [];
@@ -25,6 +29,8 @@ TT.Game = (function () {
   let lastSettings = [{ angle: 45, power: 60 }, { angle: 45, power: 60 }]; // each player's own last aim
   let draftTurn = 0;         // whose turn it is to pick (0 or 1), null once pool is empty
   let teleportUsed = [false, false]; // each player may teleport once per round
+  const MAX_DRIVES = 4, DRIVE_STEP = 30; // drive attempts per player per round, px per attempt
+  let drivesLeft = [MAX_DRIVES, MAX_DRIVES];
   const TOTAL_PICKS = WEAPONS.length; // 20, split 10/10 by alternating picks
   let onIdle = null;         // called when a shot animation ends (online.js uses it)
 
@@ -36,6 +42,8 @@ TT.Game = (function () {
   function weaponById(id) { return WEAPONS.find(w => w.id === id); }
   const isIntIn = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
   function isBusy() { return projectiles.length > 0; }
+  // A tank still rolling to where its drive already put it (animation only).
+  function isDriving() { return !!players && players.some(p => p.anim); }
 
   // ---- Local / bot / online: who may do what on this screen ----
   function isOnline() { return !!(TT.Online && TT.Online.isActive()); }
@@ -60,7 +68,9 @@ TT.Game = (function () {
     canvas = document.getElementById('c');
     ctx = canvas.getContext('2d');
     canvas.width = W; canvas.height = H;
-    new ResizeObserver(resizeCanvas).observe(canvas.parentElement);
+    const resizer = new ResizeObserver(resizeCanvas);
+    resizer.observe(canvas.parentElement);
+    resizer.observe(document.getElementById('aimPanel'));
 
     el = {
       modeScreen: document.getElementById('modeScreen'),
@@ -77,6 +87,9 @@ TT.Game = (function () {
       powerVal: document.getElementById('powerVal'),
       fireBtn: document.getElementById('fireBtn'),
       teleportBtn: document.getElementById('teleportBtn'),
+      driveLeft: document.getElementById('driveLeft'),
+      driveRight: document.getElementById('driveRight'),
+      drivesLeft: document.getElementById('drivesLeft'),
       newTerrainBtn: document.getElementById('newTerrainBtn'),
       turnFlag: document.getElementById('turnFlag'),
       weaponSelect: document.getElementById('weaponSelect'),
@@ -88,10 +101,6 @@ TT.Game = (function () {
       nameEls: [
         document.querySelector('#p1 h2'),
         document.querySelector('#p2 h2')
-      ],
-      ammoEls: [
-        document.getElementById('ammoP1'),
-        document.getElementById('ammoP2')
       ],
       shotCount: document.getElementById('shotCount'),
       scoreEls: [
@@ -111,7 +120,7 @@ TT.Game = (function () {
     document.querySelectorAll('.menuBtn').forEach(btn => btn.addEventListener('click', showMenu));
 
     // Every button turns into a small "move" object passed to act().
-    el.startBtn.addEventListener('click', () => act({ type: 'round', seed: Det.newSeed() }));
+    el.startBtn.addEventListener('click', startRound);
     el.randomBtn.addEventListener('click', () => act({ type: 'random', seed: Det.newSeed() }));
     el.angle.addEventListener('input', () => { el.angleVal.textContent = el.angle.value + '°'; draw(); aimChanged(); });
     el.power.addEventListener('input', () => { el.powerVal.textContent = el.power.value; aimChanged(); });
@@ -120,9 +129,11 @@ TT.Game = (function () {
     document.addEventListener('visibilitychange', () => { if (document.hidden) skipFlight(); });
     el.fireBtn.addEventListener('click', fire);
     el.teleportBtn.addEventListener('click', teleport);
-    el.newTerrainBtn.addEventListener('click', () => act({ type: 'round', seed: Det.newSeed() }));
+    el.driveLeft.addEventListener('click', () => drive(-1));
+    el.driveRight.addEventListener('click', () => drive(1));
+    el.newTerrainBtn.addEventListener('click', startRound);
     el.restartBtn.addEventListener('click', () => act({ type: 'redraft' }));
-    el.rematchBtn.addEventListener('click', () => act({ type: 'round', seed: Det.newSeed() }));
+    el.rematchBtn.addEventListener('click', startRound);
 
     window.addEventListener('keydown', onKey);
   }
@@ -132,7 +143,7 @@ TT.Game = (function () {
   // TT.Online so both browsers apply the same moves in the same order.
   function act(move) {
     if (isOnline()) { TT.Online.submit(move); return; }
-    const by = move.type === 'pick' ? draftTurn : move.type === 'fire' || move.type === 'teleport' ? current : 0;
+    const by = move.type === 'pick' ? draftTurn : ['fire', 'teleport', 'drive'].includes(move.type) ? current : 0;
     if (!isMe(by)) return; // vs bot: you can't move for the bot
     const err = checkMove(move, by);
     if (err) console.info('[game] ' + err);
@@ -152,6 +163,7 @@ TT.Game = (function () {
         return phase === 'draft' && by === 0 ? null : 'only the host can do that';
       case 'round':
         if (by !== 0) return 'only the host can start a round';
+        if (!isIntIn(move.width, MIN_W, MAX_W)) return 'bad arena width';
         if (phase === 'draft' && draftTurn !== null) return 'the draft is not finished';
         if (isBusy()) return 'wait for the shot to land';
         return null;
@@ -169,6 +181,11 @@ TT.Game = (function () {
         if (current !== by) return 'not your turn';
         if (teleportUsed[by]) return 'teleport already used this round';
         return null;
+      case 'drive':
+        if (phase !== 'battle' || gameOver || isBusy()) return 'cannot move right now';
+        if (current !== by) return 'not your turn';
+        if (drivesLeft[by] <= 0) return 'no moves left this round';
+        return null;
     }
     return 'unknown move';
   }
@@ -182,11 +199,12 @@ TT.Game = (function () {
       case 'random': randomDistribute(move.seed); break;
       case 'round':
         if (phase === 'draft') showScreen('battle');
-        newRound(move.seed);
+        newRound(move.seed, move.width);
         break;
       case 'redraft': backToSelect(); break;
       case 'fire': fireShot(by, move.weapon, move.angle, move.power, instant); break;
       case 'teleport': teleportTank(by, move.seed, instant); break;
+      case 'drive': driveTank(by, move.dir, instant); break;
     }
   }
 
@@ -350,8 +368,20 @@ TT.Game = (function () {
   }
 
   // ---- Match lifecycle ----
+  // The arena is as wide as this screen's battlefield (above the aim panel)
+  // at the fixed height H. Works before the battle screen is first shown.
+  function arenaWidth() {
+    const bar = document.getElementById('onlineBar');
+    const panel = document.getElementById('aimPanel');
+    const h = window.innerHeight - (bar.offsetHeight || 0) - (panel.offsetHeight || 60) - 20;
+    const w = Math.round(H * window.innerWidth / Math.max(1, h));
+    return Math.max(MIN_W, Math.min(MAX_W, w));
+  }
+  function startRound() { act({ type: 'round', seed: Det.newSeed(), width: arenaWidth() }); }
+
   // The seed makes terrain identical on both online players' screens.
-  function newRound(seed) {
+  function newRound(seed, width) {
+    W = width;
     const rand = Det.rng(seed);
     Terrain.generate(W, H, rand);
     players = [
@@ -362,6 +392,7 @@ TT.Game = (function () {
     inventory = loadout.map(list => list.slice()); // every round: all 10 weapons each
     current = 0;
     teleportUsed = [false, false];
+    drivesLeft = [MAX_DRIVES, MAX_DRIVES];
     lastSettings = [{ angle: 45, power: 60 }, { angle: 45, power: 60 }];
     el.angle.value = lastSettings[0].angle;
     el.power.value = lastSettings[0].power;
@@ -384,7 +415,6 @@ TT.Game = (function () {
   function isBuried(p) { return Terrain.heightAt(p.x) < p.y - 6; }
 
   function updateHUD() {
-    el.ammoEls.forEach((a, i) => { a.textContent = `${inventory[i].length}/${loadout[i].length} weapons left`; });
     const fired = loadout[0].length + loadout[1].length - inventory[0].length - inventory[1].length;
     el.shotCount.textContent = `Shot ${Math.min(fired + 1, TOTAL_PICKS)} of ${TOTAL_PICKS}`;
     el.scoreEls[0].textContent = `${players[0].score} pts`;
@@ -402,10 +432,12 @@ TT.Game = (function () {
 
   // Enable only the controls this screen is allowed to use right now.
   function refreshControls() {
-    const myTurn = phase === 'battle' && !gameOver && !isBusy() && canControl(current);
+    const myTurn = phase === 'battle' && !gameOver && !isBusy() && !isDriving() && canControl(current);
     el.fireBtn.disabled = el.angle.disabled = el.power.disabled = el.weaponSelect.disabled = !myTurn;
     el.teleportBtn.disabled = !myTurn || teleportUsed[current];
     el.teleportBtn.textContent = teleportUsed[current] ? '✨ Teleport used' : '✨ Teleport';
+    el.drivesLeft.textContent = players ? drivesLeft[current] : MAX_DRIVES;
+    el.driveLeft.disabled = el.driveRight.disabled = !myTurn || !drivesLeft[current];
     const guest = isOnline() && !isMe(0);
     el.newTerrainBtn.hidden = el.rematchBtn.hidden = el.restartBtn.hidden = guest;
     el.newTerrainBtn.disabled = isBusy() || !canControl(0);
@@ -438,9 +470,12 @@ TT.Game = (function () {
     const box = canvas.parentElement.getBoundingClientRect();
     if (!box.width || !box.height) return;
     const dpr = window.devicePixelRatio || 1;
-    const scale = Math.min(box.width / W, box.height / H);
+    // Keep the playable ground clear of the aim panel; scenery runs underneath it.
+    const panel = document.getElementById('aimPanel');
+    const fitH = Math.max(box.height * 0.4, box.height - panel.offsetHeight - 20);
+    const scale = Math.min(box.width / W, fitH / H);
     view = { w: box.width, h: box.height, scale, dpr,
-      ox: (box.width - W * scale) / 2, oy: box.height - H * scale };
+      ox: (box.width - W * scale) / 2, oy: fitH - H * scale };
     canvas.width = Math.round(box.width * dpr);
     canvas.height = Math.round(box.height * dpr);
     draw();
@@ -449,7 +484,7 @@ TT.Game = (function () {
   // Visible area in world coordinates (wider/taller than W×H on most screens).
   function viewRect() {
     const left = -view.ox / view.scale, top = -view.oy / view.scale;
-    return { left, top, right: left + view.w / view.scale, bottom: H };
+    return { left, top, right: left + view.w / view.scale, bottom: top + view.h / view.scale };
   }
 
   function drawSky() {
@@ -462,38 +497,98 @@ TT.Game = (function () {
     ctx.fillRect(r.left, r.top, r.right - r.left, H - r.top);
   }
 
+  // Scenery only (never affects play), so plain Math.random is fine here.
+  const STARS = Array.from({ length: 70 }, () => ({
+    u: Math.random(), v: Math.random() ** 1.6, r: 0.4 + Math.random() * 0.8, a: 0.15 + Math.random() * 0.4
+  }));
+  let soilPattern = null;
+  function soilTexture() {
+    if (soilPattern) return soilPattern;
+    const c = document.createElement('canvas');
+    c.width = c.height = 96;
+    const t = c.getContext('2d');
+    for (let i = 0; i < 140; i++) { // specks of grit and pebbles
+      t.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.18)' : 'rgba(255,220,180,0.06)';
+      t.beginPath();
+      t.arc(Math.random() * 96, Math.random() * 96, 0.4 + Math.random() * 1.3, 0, Math.PI * 2);
+      t.fill();
+    }
+    soilPattern = ctx.createPattern(c, 'repeat');
+    return soilPattern;
+  }
+
+  // Faint stars and two hazy ridges of distant hills behind the battlefield.
+  function drawBackdrop() {
+    const r = viewRect();
+    const skyH = H * 0.45 - r.top;
+    ctx.fillStyle = '#fff6ec';
+    STARS.forEach(st => {
+      ctx.globalAlpha = st.a;
+      ctx.beginPath();
+      ctx.arc(r.left + st.u * (r.right - r.left), r.top + st.v * skyH, st.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    [[H * 0.5, 34, 0.0031, cssVar('--hills-far')], [H * 0.6, 26, 0.0052, cssVar('--hills-near')]]
+      .forEach(([base, amp, freq, color]) => {
+        ctx.beginPath();
+        ctx.moveTo(r.left, r.bottom);
+        for (let x = Math.floor(r.left); x <= r.right + 8; x += 8) {
+          ctx.lineTo(x, base - amp * (Math.sin(x * freq * 6.283) * 0.6 + Math.sin(x * freq * 15.1 + 1.7) * 0.4));
+        }
+        ctx.lineTo(r.right, r.bottom);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+      });
+  }
+
+  // lineTo (not moveTo) so it can continue the ground polygon; on an empty path it starts one
+  function traceSurface(heights, r) {
+    ctx.lineTo(r.left, heights[0]);
+    for (let x = 0; x < W; x++) ctx.lineTo(x, heights[x]);
+    ctx.lineTo(r.right, heights[W - 1]);
+  }
+
   function drawTerrain() {
     const heights = Terrain.all();
     const r = viewRect();
     ctx.beginPath();
-    ctx.moveTo(r.left, H);
-    ctx.lineTo(r.left, heights[0]);
-    for (let x = 0; x < W; x++) ctx.lineTo(x, heights[x]);
-    ctx.lineTo(r.right, heights[W - 1]);
-    ctx.lineTo(r.right, H);
+    ctx.moveTo(r.left, r.bottom);
+    traceSurface(heights, r);
+    ctx.lineTo(r.right, r.bottom);
     ctx.closePath();
     const g = ctx.createLinearGradient(0, H * 0.4, 0, H);
     g.addColorStop(0, cssVar('--ground'));
     g.addColorStop(1, cssVar('--ground-dark'));
     ctx.fillStyle = g;
     ctx.fill();
-  }
 
-  // Shade the scenery outside the arena so it's clear shots there are lost.
-  function drawArenaEdges() {
-    const r = viewRect();
-    if (r.left >= 0) return;
-    ctx.fillStyle = 'rgba(10,6,16,0.22)';
-    ctx.fillRect(r.left, r.top, -r.left, H - r.top);
-    ctx.fillRect(W, r.top, r.right - W, H - r.top);
-    ctx.strokeStyle = 'rgba(255,246,236,0.12)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6, 8]);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = soilTexture();
+    ctx.fillRect(r.left, r.top, r.right - r.left, r.bottom - r.top);
+    // a lighter band of topsoil just under the surface
+    ctx.translate(0, 7);
     ctx.beginPath();
-    ctx.moveTo(0, r.top); ctx.lineTo(0, H);
-    ctx.moveTo(W, r.top); ctx.lineTo(W, H);
+    traceSurface(heights, r);
+    ctx.strokeStyle = cssVar('--topsoil');
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = 14;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.restore();
+
+    // crisp sunlit crust along the top edge
+    ctx.beginPath();
+    traceSurface(heights, r);
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = cssVar('--crust');
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,230,190,0.25)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
   }
 
   function roundRect(x, y, w, h, r) {
@@ -510,21 +605,81 @@ TT.Game = (function () {
     return (players[current] === p && !projectiles.length) ? Number(el.angle.value) : 35;
   }
 
+  // Hull and treads tilt with the slope; the barrel keeps the true aim angle
+  // and its tip lines up with where makeShell launches the shell.
   function drawTank(p) {
-    const bodyW = 26, bodyH = 12;
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    if (isBuried(p)) ctx.globalAlpha = 0.35; // faint: it's under the dirt
+    const pos = tankPos(p);
+    const tilt = Math.max(-1, Math.min(1, Math.atan(-groundGrade(pos.x, 1))));
     const rad = angleForPlayer(p) * Math.PI / 180;
-    ctx.strokeStyle = p.dark;
-    ctx.lineWidth = 5;
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
+    if (isBuried(p)) ctx.globalAlpha = 0.35; // faint: it's under the dirt
+
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; // contact shadow
     ctx.beginPath();
-    ctx.moveTo(0, -bodyH * 0.6);
-    ctx.lineTo(Math.cos(rad) * 22 * p.dir, -bodyH * 0.6 - Math.sin(rad) * 22);
-    ctx.stroke();
-    ctx.fillStyle = p.color;
-    roundRect(-bodyW / 2, -bodyH, bodyW, bodyH, 4);
+    ctx.ellipse(0, 1, 17, 3, tilt, 0, Math.PI * 2);
     ctx.fill();
+
+    if (p === players[current] && !gameOver) { // whose turn: a small chevron overhead
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.moveTo(-5, -40); ctx.lineTo(5, -40); ctx.lineTo(0, -34);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // barrel, pivoting on the turret
+    const px = Math.sin(tilt) * 11, py = -Math.cos(tilt) * 11;
+    const tx = px + Math.cos(rad) * 22 * p.dir, ty = py - Math.sin(rad) * 22;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#17121a';
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tx, ty); ctx.stroke();
+    ctx.strokeStyle = p.dark;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.strokeStyle = '#17121a'; // muzzle brake
+    ctx.lineWidth = 5.5;
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    ctx.moveTo(tx - Math.cos(rad) * 4 * p.dir, ty + Math.sin(rad) * 4);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+
+    ctx.rotate(tilt);
+    // treads and road wheels
+    ctx.fillStyle = '#1d181f';
+    roundRect(-15, -6.5, 30, 6.5, 3.2);
+    ctx.fill();
+    const spin = pos.x / 2; // wheels roll as the tank drives (radius 2)
+    const sx = Math.cos(spin) * 1.7, sy = Math.sin(spin) * 1.7;
+    ctx.strokeStyle = '#1d181f';
+    ctx.lineWidth = 0.7;
+    [-10, -3.5, 3.5, 10].forEach(wx => {
+      ctx.fillStyle = '#5a4e5e';
+      ctx.beginPath(); ctx.arc(wx, -3.2, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(wx - sx, -3.2 - sy); ctx.lineTo(wx + sx, -3.2 + sy); ctx.stroke();
+    });
+
+    // hull and turret dome, lit from above
+    const shade = ctx.createLinearGradient(0, -17, 0, -6);
+    shade.addColorStop(0, p.color);
+    shade.addColorStop(1, p.dark);
+    ctx.fillStyle = shade;
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-14, -6); ctx.lineTo(-11.5, -11); ctx.lineTo(11.5, -11); ctx.lineTo(14, -6);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, -11, 6.5, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; // highlights
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-10.5, -10.3); ctx.lineTo(10.5, -10.3); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, -11, 5, Math.PI * 1.15, Math.PI * 1.55); ctx.stroke();
     ctx.restore();
   }
 
@@ -625,8 +780,8 @@ TT.Game = (function () {
     const { scale, dpr, ox, oy } = view;
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, ox * dpr, oy * dpr);
     drawSky();
+    drawBackdrop();
     drawTerrain();
-    drawArenaEdges();
     players.forEach(drawTank);
     drawFires();
     drawProjectiles();
@@ -664,8 +819,14 @@ TT.Game = (function () {
       popups.forEach(p => { p.y -= 40 * dt; p.alpha -= dt * 0.9; });
       popups = popups.filter(p => p.alpha > 0);
       fires = fires.filter(f => f.until > now);
+      if (players) players.forEach(p => {
+        if (p.anim && (now - p.anim.start) / 1000 * DRIVE_SPEED >= p.anim.path.length - 1) {
+          p.anim = null;
+          refreshControls();
+        }
+      });
       draw();
-      if (popups.length || fires.length || TT.Effects.active()) requestAnimationFrame(step);
+      if (popups.length || fires.length || TT.Effects.active() || isDriving()) requestAnimationFrame(step);
       else effectsAnimating = false;
     });
   }
@@ -728,6 +889,7 @@ TT.Game = (function () {
 
   function fireShot(by, weaponId, angleDeg, power, instant) {
     const weapon = weaponById(weaponId);
+    stopDriving();
     inventory[by].splice(inventory[by].indexOf(weapon.id), 1); // each weapon fires once
     lastSettings[by] = { angle: angleDeg, power };
     projectiles = [makeShell(players[by], weapon, angleDeg, power)];
@@ -757,6 +919,68 @@ TT.Game = (function () {
     act({ type: 'teleport', seed: Det.newSeed() });
   }
 
+  function drive(dir) {
+    if (!canControl(current)) return;
+    act({ type: 'drive', dir });
+  }
+  // The tank rolls one px at a time along the ground, up to DRIVE_STEP px, and
+  // stops where it can't go on: a hill too steep to climb, a sudden spike or
+  // ledge, the arena edge or the other tank. Pure terrain maths, so both online
+  // players get the same end point. Every attempt costs a move, even if it goes nowhere.
+  //
+  // Like a real vehicle, steepness is judged over the tank's whole length (the
+  // hill under its tracks), so smooth hills are climbable up to MAX_GRADE; a
+  // sudden jump in the ground right in front of it (crater rim, dirt wall, or
+  // the tank being buried) stops it however gentle the hill around it is.
+  const TANK_HALF = 12;     // half the track length, px
+  const MAX_GRADE = 1.6;    // steepest climb under the tracks: rise per px (~58°)
+  const MAX_STEP = 4;       // a bigger rise in 1 px is a spike the tank can't mount
+  const MAX_DROP = 5;       // a bigger fall in 1 px is a ledge it won't drive off
+  const DRIVE_SPEED = 40;   // px/s, animation only
+  // How much the ground rises per px over the tank's length, heading `dir`.
+  function groundGrade(x, dir) {
+    return (Terrain.heightAt(x - dir * TANK_HALF) - Terrain.heightAt(x + dir * TANK_HALF)) / (2 * TANK_HALF);
+  }
+  function drivePath(by, dir) {
+    const p = players[by], other = players[1 - by].x;
+    const path = [{ x: p.x, y: p.y }];
+    let { x, y } = p, blocked = null;
+    for (let i = 0; i < DRIVE_STEP; i++) {
+      const nx = x + dir, ny = Terrain.heightAt(nx);
+      if (nx < TANK_MARGIN || nx > W - TANK_MARGIN) blocked = 'edge';
+      else if (Math.abs(nx - other) <= TANK_GAP) blocked = 'too close';
+      else if (y - ny > MAX_STEP) blocked = isBuried(p) && i === 0 ? 'buried' : 'too bumpy';
+      else if (ny - y > MAX_DROP) blocked = 'ledge';
+      else if (groundGrade(nx, dir) > MAX_GRADE) blocked = 'too steep';
+      if (blocked) break;
+      x = nx; y = ny;
+      path.push({ x, y });
+    }
+    return { path, blocked };
+  }
+  function driveTank(by, dir, instant) {
+    const p = players[by];
+    const { path, blocked } = drivePath(by, dir);
+    drivesLeft[by]--;
+    Object.assign(p, path[path.length - 1]);
+    if (!instant) {
+      // hidden tabs pause animation, so there the tank just arrives
+      if (path.length > 1 && !document.hidden) { p.anim = { path, start: performance.now() }; animateEffects(); }
+      if (blocked) showPopup(p.x, p.y - 30, path.length > 1 ? blocked : `stuck: ${blocked}`, '#ffffffaa');
+    }
+    refreshControls();
+    draw();
+  }
+  // Where to draw a tank: partway along its drive while it's still rolling.
+  function tankPos(p) {
+    if (!p.anim) return p;
+    const { path, start } = p.anim;
+    const t = Math.min(path.length - 1, (performance.now() - start) / 1000 * DRIVE_SPEED);
+    const a = path[Math.floor(t)], b = path[Math.ceil(t)], k = t - Math.floor(t);
+    return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+  }
+  function stopDriving() { if (players) players.forEach(p => { p.anim = null; }); }
+
   // Every spot that's on screen and clear of the opponent, on either side.
   // Picking one at random is the same as rolling a random side + distance and
   // re-rolling until it fits, but it can never loop forever.
@@ -775,6 +999,7 @@ TT.Game = (function () {
   function teleportTank(by, seed, instant) {
     const p = players[by];
     const spots = teleportSpots(by);
+    stopDriving();
     teleportUsed[by] = true;
     p.x = spots[Math.floor(Det.rng(seed)() * spots.length)];
     placeOnGround(p);
@@ -967,9 +1192,13 @@ TT.Game = (function () {
   function onKey(e) {
     if (phase !== 'battle') return;
     if (e.target.matches && e.target.matches('input[type=text], textarea')) return; // typing in chat
-    if (gameOver || isBusy() || !canControl(current)) return;
+    if (gameOver || isBusy() || isDriving() || !canControl(current)) return;
+    // A focused slider or weapon list already moves itself with the arrows
+    if (e.code.startsWith('Arrow') && e.target.matches && e.target.matches('input[type=range], select')) return;
     if (e.code === 'Space') { e.preventDefault(); fire(); }
     else if (e.code === 'KeyT') teleport();
+    else if (e.code === 'KeyA') drive(-1);
+    else if (e.code === 'KeyD') drive(1);
     else if (e.code === 'ArrowUp') { el.power.value = Math.min(100, Number(el.power.value) + 2); el.powerVal.textContent = el.power.value; aimChanged(); }
     else if (e.code === 'ArrowDown') { el.power.value = Math.max(10, Number(el.power.value) - 2); el.powerVal.textContent = el.power.value; aimChanged(); }
     else if (e.code === 'ArrowLeft') { el.angle.value = Math.max(0, Number(el.angle.value) - 2); el.angleVal.textContent = el.angle.value + '°'; draw(); aimChanged(); }

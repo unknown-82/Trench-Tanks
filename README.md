@@ -34,12 +34,19 @@ PeerJS, loaded from a CDN (pinned to 1.5.4).
    Opening a `?room=` link skips this and joins the online game.
 1. **Weapon draft** (`#selectScreen`): players take turns picking from a shared pool.
 2. **Start battle** generates terrain and begins turn 1 (Player 1 / red goes first).
+   The arena is as wide as the host's screen (900–1800 px wide, 506 px tall).
 3. Players alternate shots. **Each weapon fires exactly once** and there is no
    unlimited backup shell, so a match is always 20 shots (10 each).
    - **Teleport** (✨ button or **T**), once per round: on your turn, before
      firing, your tank jumps 10–25% of the screen width left or right (random)
      and settles on the ground there. You still fire that turn. Spots off screen
      or on top of the opponent are skipped. The bot never teleports.
+   - **Move** (`<` / `>` in the controller, or **A** / **D**), 4 tries per round:
+     on your turn, your tank drives up to 30 px left or right along the ground.
+     It stops early at a slope too steep to climb, a sharp drop, the arena edge
+     or the other tank (a buried tank can't drive out). Every try uses one move,
+     even if the tank can't budge. The number between the arrows is how many
+     moves you have left. You still fire that turn. The bot never moves.
 4. Tanks can't be destroyed. Blasts only reshape the ground. After the 20th shot,
    **the higher score wins** (or it's a draw).
 5. "Rematch" and "New terrain" restart the round with the full drafted loadout.

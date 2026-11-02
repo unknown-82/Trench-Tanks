@@ -30,10 +30,11 @@ TT.Protocol = (function () {
   const MOVES = {
     pick:    shape({ id: isId }),                       // draft a weapon
     random:  shape({ seed: isSeed }),                   // random weapon split (host)
-    round:   shape({ seed: isSeed }),                   // start / rematch / new terrain (host)
+    round:   shape({ seed: isSeed, width: isInt(900, 1800) }), // start / rematch / new terrain (host)
     redraft: shape({}),                                 // back to weapon select (host)
     fire:    shape({ weapon: isId, angle: isInt(0, 180), power: isInt(10, 100) }),
-    teleport: shape({ seed: isSeed })                   // jump left/right, once per round
+    teleport: shape({ seed: isSeed }),                  // jump left/right, once per round
+    drive:   shape({ dir: oneOf(-1, 1) })               // roll a short way left/right, 4 per round
   };
   const isMove = m => isObj(m) && typeof m.type === 'string' && has(MOVES, m.type) && MOVES[m.type](m);
   // One entry of the host's move log: who made it + the move.

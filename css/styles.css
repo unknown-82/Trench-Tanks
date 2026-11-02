@@ -1,6 +1,7 @@
 :root{
   --sky-top:#221a2e; --sky-mid:#583a50; --sky-bot:#9c604a;
-  --ground:#3c2a1e; --ground-dark:#241811;
+  --ground:#3c2a1e; --ground-dark:#241811; --topsoil:#5c4029; --crust:#8a6643;
+  --hills-far:#3a2a3e99; --hills-near:#2a1f2fcc;
   --p1:#ff5c5c; --p1-dark:#a33232;
   --p2:#4fb0ff; --p2-dark:#1f5c8f;
   --ink:#fff6ec; --panel:#1b1220ee; --accent:#ffcf5c;
@@ -52,69 +53,69 @@ h1 span{color:var(--accent);}
 #startBtn:active{transform:translateY(2px); box-shadow:0 1px 0 #8a6712;}
 #startBtn:disabled{opacity:.4; cursor:not-allowed; box-shadow:none;}
 
-/* ---- game screen ---- */
-#stage{position:relative; width:100%; aspect-ratio:16/9; border-radius:10px; overflow:hidden;
-  box-shadow:0 10px 30px #000a, inset 0 0 0 2px #ffffff22;}
-#dock{display:grid; grid-template-columns:minmax(180px,1fr) minmax(320px,2.2fr) minmax(180px,1fr);
-  grid-template-areas:"p1 aim p2"; gap:10px; margin-top:10px;}
-#p1{grid-area:p1;} #p2{grid-area:p2;} #aimPanel{grid-area:aim;}
-#dock .card{min-width:0;}
-@media (max-width:760px){
-  #dock{grid-template-columns:1fr 1fr; grid-template-areas:"p1 p2" "aim aim"; gap:8px;}
-}
-
-/* ---- battle: game fills the whole window, controls pinned to the bottom ---- */
+/* ---- game screen: battlefield fills the window, HUD floats on top ---- */
 body.battle{height:100vh; height:100dvh; min-height:0; overflow:hidden;}
-body.battle h1{margin:.25em 0 .2em; font-size:clamp(1rem,2.4vw,1.4rem);}
-body.battle #app{width:100%; flex:1; min-height:0; margin:0; padding:0 10px 10px;
-  display:flex; flex-direction:column;}
-body.battle #onlineBar{margin-bottom:8px; padding:6px 12px; flex:none;}
-body.battle #gameScreen{flex:1; min-height:0; display:flex; flex-direction:column;}
-body.battle #stage{flex:1; min-height:120px; aspect-ratio:auto;}
-body.battle #dock{flex:none; min-height:22vh; min-height:22dvh; align-items:stretch;}
-body.battle #chat{flex:none; margin-top:8px; padding:6px 12px;}
+body.battle h1{display:none;}
+body.battle #app{width:100%; flex:1; min-height:0; margin:0;
+  display:grid; grid-template-rows:auto minmax(0,1fr); grid-template-columns:100%;}
+body.battle #onlineBar{grid-row:1; margin:0; border-radius:0; padding:6px 12px;}
+#gameScreen{grid-row:2; grid-column:1; min-height:0; display:flex;}
+#stage{position:relative; flex:1; min-width:0; overflow:hidden;}
+canvas{position:absolute; inset:0; display:block; width:100%; height:100%;}
+.scoreTag, #aimPanel{
+  position:absolute; z-index:2; background:#1b1220b8; border:1px solid #ffffff1a;
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+}
+.scoreTag{top:10px; display:flex; align-items:baseline; gap:10px; padding:6px 12px; border-radius:10px; pointer-events:none;}
+#p1{left:10px; border-left:3px solid var(--p1);}
+#p2{right:10px; border-right:3px solid var(--p2);}
+.scoreTag h2{margin:0; font-size:.8rem; font-weight:500; opacity:.85;}
+.scoreTag .score{margin:0;}
+#aimPanel{
+  left:50%; bottom:10px; transform:translateX(-50%); width:max-content; max-width:calc(100% - 20px);
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px 14px;
+  padding:8px 12px; border-radius:12px; font-family:'Space Mono',monospace; font-size:.8rem;
+}
+#turnInfo{font-family:'Rubik',sans-serif; font-weight:500; opacity:.85;}
+.ctl{display:flex; align-items:center; gap:6px;}
+.ctl label{opacity:.75;}
+.ctl input[type=range]{flex:none; width:110px;}
+#driveCtl{gap:4px;}
+#driveCtl button{padding:3px 9px; font-family:'Space Mono',monospace;}
+#drivesLeft{min-width:1.4em; text-align:center; font-weight:700; color:var(--accent);}
+@media (max-width:640px){
+  #aimPanel{width:calc(100% - 20px); gap:4px 10px; padding:6px 10px;}
+  #turnInfo{flex:1 1 100%; text-align:center;}
+  .ctl:not(#driveCtl){flex:1 1 100%;}
+  .ctl label{width:52px;}
+  .ctl input[type=range], .ctl select#weaponSelect{flex:1; width:auto; max-width:none;}
+  .scoreTag{padding:4px 8px; gap:6px;}
+}
+/* online chat floats in the battlefield's top-right corner, under Player 2's score */
+body.battle #chat{grid-row:2; grid-column:1; align-self:start; justify-self:end; position:relative; z-index:3;
+  width:min(280px,45vw); margin:52px 10px 0 0; padding:6px 10px; flex:none;}
 body.battle #chat h2{display:none;}
-body.battle .chatLog{height:52px;}
-@media (max-width:760px), (max-height:600px){
-  body.battle #hint{display:none;}
-  body.battle .card{padding:6px 10px;}
-  body.battle .row{margin-top:4px;}
-  body.battle #controls{margin-top:6px;}
-}
-@media (max-height:500px){
-  body.battle h1{display:none;}
-  body.battle #app{padding-top:6px;}
-  body.battle #dock{min-height:0; gap:6px; margin-top:6px;
-    grid-template-columns:minmax(100px,.6fr) minmax(300px,2.6fr) minmax(100px,.6fr);
-    grid-template-areas:"p1 aim p2";}
-  body.battle .ammo{display:none;}
-  body.battle #aimPanel h2{margin-bottom:0;}
-  body.battle #controls{gap:6px;}
-  body.battle #controls button{padding:5px 12px; font-size:.85rem;}
-}
-canvas{display:block; width:100%; height:100%;}
+body.battle .chatLog{height:70px;}
 #banner{
   position:absolute; inset:0; display:none; align-items:center; justify-content:center;
   background:#000a; font-size:clamp(1.2rem,5vw,2.2rem); font-weight:900; text-align:center;
-  flex-direction:column; gap:.6em;
+  flex-direction:column; gap:.6em; z-index:5;
 }
 .card{background:var(--panel); border-radius:10px; padding:10px 14px; flex:1; min-width:200px; border:1px solid #ffffff1a;}
 .card h2{margin:0 0 6px; font-size:.85rem; font-weight:500; opacity:.8;}
 .score{font-family:'Space Mono',monospace; font-size:1rem; font-weight:700; color:var(--accent); margin-bottom:4px;}
-.ammo{font-family:'Space Mono',monospace; font-size:.8rem; opacity:.75;}
-.row{display:flex; align-items:center; gap:8px; margin-top:8px; font-family:'Space Mono',monospace; font-size:.85rem;}
-.row label{width:52px; opacity:.8;}
 input[type=range]{flex:1; accent-color:var(--accent);}
 select#weaponSelect{
-  flex:1; background:#1b1220; color:var(--ink); border:1px solid #ffffff33;
-  border-radius:6px; padding:6px 8px; font:inherit; color-scheme:dark;
+  max-width:240px; background:#1b1220; color:var(--ink); border:1px solid #ffffff33;
+  border-radius:6px; padding:4px 6px; font:inherit; color-scheme:dark;
 }
 select#weaponSelect option{background:#1b1220; color:var(--ink);}
 .val{width:38px; text-align:right;}
-#controls{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;}
+#controls{display:flex; gap:6px; flex-wrap:wrap; justify-content:center;}
+#aimPanel button.secondary{padding:5px 10px; font-size:.8rem;}
 #fireBtn{
   background:linear-gradient(180deg,var(--accent),#e0a52b); color:#2b1b00; border:none;
-  font-weight:900; font-size:1.05rem; border-radius:10px; padding:0 26px; cursor:pointer;
+  font-weight:900; font-size:.95rem; border-radius:8px; padding:5px 20px; cursor:pointer;
   box-shadow:0 3px 0 #8a6712;
 }
 #fireBtn:active{transform:translateY(2px); box-shadow:0 1px 0 #8a6712;}
@@ -125,7 +126,6 @@ button.secondary{
   padding:8px 16px; cursor:pointer; font:inherit; font-weight:700;
 }
 button.secondary:hover{background:#ffffff26;}
-#hint{opacity:.6; font-size:.75rem; margin:.6em 0 0;}
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
 
 /* ---- online play ---- */

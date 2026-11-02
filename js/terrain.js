@@ -8,7 +8,7 @@ TT.Terrain = (function () {
   function generate(width, height, rand) {
     rand = rand || Math.random;
     W = width; H = height;
-    const segments = 10;
+    const segments = Math.max(10, Math.round(W / 90)); // same hill size on wider arenas
     const points = [];
     for (let i = 0; i <= segments; i++) {
       points.push(H * 0.5 + rand() * H * 0.25);
