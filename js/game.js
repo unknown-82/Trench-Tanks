@@ -843,9 +843,13 @@ TT.Game = (function () {
   // the same place. (The Beaver flies the same arc but passes through the
   // ground: see collide().)
   const SPEED_PER_POWER = 6.5;
-  const ACCURACY_RANGE = 150; // attackers: px from the opponent that still earns points
-  const MAGIC_SPREAD = 60;    // magic: a blast this close (px) still earns a little
-  const MAGIC_NEAR_SHARE = 0.3; // ...at most this share of the max points
+  // Scoring zones, measured along x from the centre of the opponent's tank
+  // (the drawn hull is 30 px wide). Points follow what you SEE: a blast that
+  // lands on the tank or visibly touches it scores, one that doesn't is +0.
+  const HULL_HALF = 15;       // half the drawn hull width
+  const DEAD_CENTRE = 5;      // this close to the middle: full points
+  const EDGE_SHARE = 0.8;     // landing right at the hull's edge: 80%
+  const GRAZE_SHARE = 0.3;    // blast only just reaching the hull: 30%
   const MAX_STEPS = 3000;     // safety net: a shell can't fly forever
 
   function makeShell(shooter, weapon, angleDeg, power) {
@@ -1147,21 +1151,27 @@ TT.Game = (function () {
 
   // Points for a shot that landed at x. `hit` is 'tank' when it touched the
   // opponent's tank, which always earns the category's full points.
-  //   shooters: only a touch scores; a near miss is worth nothing
-  //   magic:    a near miss (within MAGIC_SPREAD of any of its blasts) gets a
-  //             few points; the Beaver still needs a touch
-  //   attackers: points fall off over ACCURACY_RANGE px
-  //   dirt:     never scores
+  // Otherwise points depend on how close the nearest blast is to the tank:
+  //   on the hull (within HULL_HALF px)   100% at the centre -> 80% at the edge
+  //   blast still reaches the hull        80% -> 30% as it only just grazes it
+  //                                       (reach = HULL_HALF + blast radius)
+  //   blast doesn't reach the tank        0
+  // The Beaver leaves no blast, so it only scores on a direct hit; dirt
+  // movers never score. Rounded to the nearest 5.
   function shotPoints(w, hit, x) {
     const max = TT.CATEGORY_MAX_POINTS[w.category] || 0;
+    if (!max) return 0;
     if (hit === 'tank') return max;
+    if ((w.effect || {}).type === 'tunnel') return 0;
     const targetX = players[1 - current].x;
-    if (w.category === 'attacker') return Math.max(0, 1 - Math.abs(targetX - x) / ACCURACY_RANGE) * max;
-    if (w.category === 'magic' && (w.effect || {}).type !== 'tunnel') {
-      const dist = Math.min(...blastXs(w, x).map(bx => Math.abs(targetX - bx)));
-      return Math.max(0, 1 - dist / MAGIC_SPREAD) * max * MAGIC_NEAR_SHARE;
-    }
-    return 0;
+    const dist = Math.min(...blastXs(w, x).map(bx => Math.abs(targetX - bx)));
+    const reach = HULL_HALF + w.radius;
+    let share;
+    if (dist <= DEAD_CENTRE) share = 1;
+    else if (dist <= HULL_HALF) share = 1 - (1 - EDGE_SHARE) * (dist - DEAD_CENTRE) / (HULL_HALF - DEAD_CENTRE);
+    else if (dist <= reach) share = EDGE_SHARE - (EDGE_SHARE - GRAZE_SHARE) * (dist - HULL_HALF) / w.radius;
+    else share = 0;
+    return Math.round(share * max / 5) * 5;
   }
 
   function scoreShot(pr, hit, x, y, quiet) {

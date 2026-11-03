@@ -55,16 +55,25 @@ PeerJS, loaded from a CDN (pinned to 1.5.4).
 ### Scoring
 
 A shot that touches the opponent's tank always scores its category's full
-points. What a near miss earns depends on the category (`shotPoints()` in
-`js/game.js`). Hitting your own tank scores nothing.
+points. Otherwise the score follows what you see: it depends on how far (along
+the ground) the blast lands from the middle of the opponent's tank
+(`shotPoints()` in `js/game.js`). Hitting your own tank scores nothing.
 
-| Category    | Touches the tank | Near miss |
-| ----------- | ---------------- | --------- |
-| Shooters    | 100              | 0: they must touch the tank |
-| Magical     | 75               | Up to 22 if a blast lands within 60 px, falling to 0 (Beaver: 0) |
-| Attackers   | 50               | `(1 - distance / 150px) × 50`, so 0 at 150 px or more |
-| Dirt movers | 0                | 0 (they reshape terrain to block or expose tanks) |
+| Where the blast lands                          | Share of the category's points |
+| ---------------------------------------------- | ------------------------------ |
+| Within 5 px of the tank's middle               | 100% |
+| On the hull (up to 15 px from the middle)      | 100% → 80% at the hull's edge |
+| Off the hull, but the blast still reaches it   | 80% → 30% as it only just grazes it (reach = 15 px + blast radius) |
+| The blast doesn't reach the tank               | 0 |
 
+| Category    | Full points | Notes |
+| ----------- | ----------- | ----- |
+| Shooters    | 100         | e.g. landing at the front of the tank ≈ +80, just beside it ≈ +60 |
+| Magical     | 75          | Beaver: only a direct hit scores (it leaves no blast) |
+| Attackers   | 50          | Their big blasts reach the tank from further away |
+| Dirt movers | 0           | They reshape terrain to block or expose tanks |
+
+Points are rounded to the nearest 5.
 For Triple Threat and Meteor Storm, the nearest of their blasts counts.
 
 Special weapons:
