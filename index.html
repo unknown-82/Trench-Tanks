@@ -3,143 +3,334 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#03040a">
 <title>Trench Tanks</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
 </head>
-<body>
-<h1>Trench <span>Tanks</span></h1>
+<body data-screen="menu">
+
+<!-- Menu backdrop: a live 3D hologram of the range (js/holo.js) -->
+<canvas id="holo" aria-hidden="true"></canvas>
+<div class="atmo" aria-hidden="true"></div>
+<div id="wipe" aria-hidden="true"></div>
+
+<!-- BOOT: first click starts the audio system (browsers require a click) -->
+<div id="boot">
+  <div class="bootCore">
+    <div class="bootRing" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="bootLogo">TRENCH <span>TANKS</span></div>
+    <button id="bootStart" class="btn btn-primary btn-xl" type="button" data-snd="none">Initialize systems</button>
+  </div>
+</div>
+
+<button id="audioFab" class="audioBtn fab" type="button" aria-label="Audio settings" data-snd="panel">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 9c1.500 1.500 1.500 4.500 0 6M18.500 6.500c3 3 3 8 0 11"/><path class="cross" d="M16 9l5 6M21 9l-5 6"/></svg>
+</button>
+
 <div id="app">
 
-  <!-- ONLINE BAR: create a room, share the link, connection status -->
-  <section id="onlineBar" class="card" hidden>
+  <!-- UPLINK BAR: connection status, room link, reconnect / leave (online games only) -->
+  <section id="onlineBar" class="uplink" hidden>
     <div class="onlineRow">
+      <span class="uplinkTag">Uplink</span>
       <span id="netStatus" class="netStatus" data-state="local" role="status" aria-live="polite">Local game · both players on this device</span>
+      <div id="roomBox" class="roomBox" hidden>
+        <input id="roomLink" type="text" readonly aria-label="Room link to send to your opponent">
+        <button id="copyBtn" class="btn btn-ghost btn-sm" type="button">Copy link</button>
+      </div>
       <div class="onlineBtns">
-        <button id="reconnectBtn" class="secondary" type="button" hidden>↻ Reconnect</button>
-        <button id="leaveBtn" class="secondary" type="button" hidden>Leave</button>
+        <button id="reconnectBtn" class="btn btn-ghost btn-sm" type="button" hidden>↻ Reconnect</button>
+        <button id="leaveBtn" class="btn btn-ghost btn-sm" type="button" data-snd="back" hidden>Leave</button>
       </div>
-    </div>
-    <div id="roomBox" class="roomBox" hidden>
-      <input id="roomLink" type="text" readonly aria-label="Room link to send to your opponent">
-      <button id="copyBtn" class="secondary" type="button">Copy link</button>
     </div>
   </section>
 
-  <!-- SCREEN 0: choose how to play -->
+  <!-- SCREEN 0: command deck, choose how to play -->
   <section id="modeScreen">
+    <header class="hero">
+      <div class="kicker">Classified // Orbital weapons range K-7 // 2089</div>
+      <h1 class="logo"><span class="logoA">Trench</span><span class="logoB">Tanks</span></h1>
+      <p class="heroSub">Turn-based artillery combat. Draft ten shells each, read the ridge line, and out-score the other unit before the magazines run dry.</p>
+    </header>
+
     <div class="modeGrid">
-      <button id="modeLocal" class="modeCard" type="button">
-        <span class="modeIcon">👥</span>
-        <strong>2 players</strong>
-        <span class="modeDesc">Take turns on this device</span>
+      <button id="modeLocal" class="modeCard cut" type="button" data-snd="select">
+        <span class="modeIdx" aria-hidden="true">01</span>
+        <span class="modeIcon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M6 34h14l3-6h-8l-2-6h-5l-2 6zM28 34h14l-2-6-2-6h-5l-2 6h-6z"/><path d="M13 22l9-9M35 22l-9-9"/><path d="M4 38h40"/></svg></span>
+        <strong>Local combat</strong>
+        <span class="modeDesc">Two operators, one console. Pass the controls between shots.</span>
+        <span class="modeMeta"><i>2 players</i><i>1 device</i></span>
+        <span class="modeCta">Deploy</span>
       </button>
-      <button id="modeOnline" class="modeCard" type="button">
-        <span class="modeIcon">🌐</span>
-        <strong>Online game</strong>
-        <span class="modeDesc">Send a link to a friend</span>
-      </button>
-      <div class="modeCard botCard">
-        <span class="modeIcon">🤖</span>
-        <strong>1 player vs bot</strong>
-        <span class="modeDesc">Choose a difficulty</span>
+
+      <div class="modeCard cut botCard">
+        <span class="modeIdx" aria-hidden="true">02</span>
+        <span class="modeIcon" aria-hidden="true"><svg viewBox="0 0 48 48"><rect x="10" y="14" width="28" height="22" rx="3"/><path d="M24 14V7M18 36v5M30 36v5M4 22v8M44 22v8"/><circle cx="18" cy="24" r="3"/><circle cx="30" cy="24" r="3"/><path d="M18 31h12"/><circle cx="24" cy="5" r="2"/></svg></span>
+        <strong>AI combat</strong>
+        <span class="modeDesc">Duel the range's fire-control AI. Choose how well it aims.</span>
         <div class="levelBtns">
-          <button class="secondary" type="button" data-bot="easy">Easy</button>
-          <button class="secondary" type="button" data-bot="medium">Medium</button>
-          <button class="secondary" type="button" data-bot="hard">Hard</button>
+          <button class="levelBtn" type="button" data-bot="easy" data-snd="select"><b>Easy</b><i data-level-info="easy"></i></button>
+          <button class="levelBtn" type="button" data-bot="medium" data-snd="select"><b>Medium</b><i data-level-info="medium"></i></button>
+          <button class="levelBtn" type="button" data-bot="hard" data-snd="select"><b>Hard</b><i data-level-info="hard"></i></button>
+        </div>
+      </div>
+
+      <div class="modeCard cut onlineCard">
+        <span class="modeIdx" aria-hidden="true">03</span>
+        <span class="modeIcon" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><path d="M7 24h34M24 7c-7 5-7 29 0 34M24 7c7 5 7 29 0 34M10 14h28M10 34h28"/></svg></span>
+        <strong>Online combat</strong>
+        <span class="modeDesc">Direct browser-to-browser link. Open a room and send the link.</span>
+        <div class="onlineActions">
+          <button id="modeOnline" class="btn btn-cyan" type="button" data-snd="select">Create room</button>
+          <form id="joinForm" class="joinForm">
+            <input id="joinInput" type="text" placeholder="Paste a room link to join" autocomplete="off" spellcheck="false" aria-label="Room link">
+            <button id="joinBtn" class="btn btn-ghost btn-sm" type="submit" data-snd="select">Join</button>
+          </form>
+          <span id="joinNote" class="joinNote" role="status"></span>
         </div>
       </div>
     </div>
+
+    <footer class="heroFoot">
+      <span><kbd>←</kbd><kbd>→</kbd> elevation</span>
+      <span><kbd>↑</kbd><kbd>↓</kbd> power</span>
+      <span><kbd>Space</kbd> fire</span>
+      <span><kbd>A</kbd><kbd>D</kbd> drive</span>
+      <span><kbd>T</kbd> teleport</span>
+    </footer>
   </section>
 
-  <!-- SCREEN 1: shared weapon pool, players draft one by one -->
-  <section id="selectScreen" style="display:none;">
-    <div class="card">
-      <h2 id="draftPrompt">Player 1, choose your weapon</h2>
-      <div id="pickSummary" class="pickSummary"></div>
+  <!-- SCREEN 1: armoury. Shared weapon pool, players draft one by one -->
+  <section id="selectScreen" hidden>
+    <header class="armoryHead">
+      <div class="armoryTitle">
+        <span class="kicker">Pre-battle // Armoury <span id="missionTag" class="chip">Local combat</span></span>
+        <h2 id="draftPrompt">Player 1, choose your weapon</h2>
+        <div id="pickSummary" class="sr-only"></div>
+      </div>
       <div class="draftBtns">
-        <button id="randomBtn" class="secondary" type="button">🎲 Random distribute</button>
-        <button class="secondary menuBtn" type="button">← Menu</button>
+        <button id="randomBtn" class="btn btn-ghost" type="button" title="Split all 20 weapons at random, 10 each" data-snd="none">Auto-allocate</button>
+        <button class="btn btn-ghost menuBtn" type="button" data-snd="back">← Command</button>
+      </div>
+    </header>
+
+    <div class="versus">
+      <div class="loadout loadout-p1 cut" id="loadP1">
+        <div class="loadHead"><span class="plateTag">Unit A</span><b class="loadName">Player 1</b><span class="loadCount">0/10</span></div>
+        <div class="slots"></div>
+      </div>
+
+      <aside id="inspector" class="inspector cut" aria-live="polite">
+        <canvas id="wpnPreview" width="220" height="150" aria-hidden="true"></canvas>
+        <div class="inspBody">
+          <span class="kicker" id="inspClass">Ordnance scan</span>
+          <strong id="inspName">Select a weapon</strong>
+          <p id="inspDesc">Point at any weapon in the racks below to inspect it.</p>
+          <div class="inspStats">
+            <div class="stat"><span>Blast radius</span><div class="bar"><i id="inspBlastBar"></i></div><b id="inspBlast">—</b></div>
+            <div class="stat"><span>Max score</span><div class="bar"><i id="inspPtsBar"></i></div><b id="inspPts">—</b></div>
+            <div class="stat"><span>Payload</span><b id="inspPayload" class="wide">—</b></div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="loadout loadout-p2 cut" id="loadP2">
+        <div class="loadHead"><span class="plateTag">Unit B</span><b class="loadName">Player 2</b><span class="loadCount">0/10</span></div>
+        <div class="slots"></div>
       </div>
     </div>
-    <div id="weaponPool"></div>
-    <button id="startBtn" type="button" disabled>Start battle</button>
+
+    <div class="poolWrap">
+      <div id="weaponPool"></div>
+      <!-- Shown over the racks while an online game has no opponent connected -->
+      <div id="uplinkWait" class="uplinkWait">
+        <div class="radar" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
+        <strong id="uplinkTitle">Awaiting opponent</strong>
+        <p id="uplinkText"></p>
+        <button id="uplinkCopy" class="btn btn-cyan" type="button">Copy room link</button>
+      </div>
+    </div>
+
+    <button id="startBtn" class="btn btn-primary btn-xl" type="button" disabled data-snd="confirm">Start mission</button>
   </section>
 
-  <!-- SCREEN 2: the match itself, hidden until weapons are chosen.
-       The battlefield fills the screen; scores and controls float on top. -->
-  <section id="gameScreen" style="display:none;">
+  <!-- SCREEN 2: the match. The battlefield fills the screen; the HUD frames it. -->
+  <section id="gameScreen" hidden>
     <div id="stage">
-      <canvas id="c"></canvas>
-
-      <div class="scoreTag" id="p1">
-        <h2>Player 1</h2>
-        <div class="score" id="scoreP1">0 pts</div>
+      <div id="world">
+        <canvas id="sky" aria-hidden="true"></canvas>
+        <div class="fog" aria-hidden="true"></div>
+        <canvas id="c"></canvas>
+        <canvas id="motes" aria-hidden="true"></canvas>
       </div>
-      <div class="scoreTag" id="p2">
-        <h2>Player 2</h2>
-        <div class="score" id="scoreP2">0 pts</div>
-      </div>
+      <div id="impactFlash" aria-hidden="true"></div>
 
-      <div id="aimPanel" title="Arrow keys ↑↓ adjust power, ←→ adjust angle, space fires, A/D move (4 per round), T teleports (once per round).">
-        <div id="turnInfo"><span id="turnFlag">Player 1's</span> turn · <span id="shotCount">Shot 1 of 20</span></div>
-        <div class="ctl">
-          <label for="weaponSelect">Weapon</label>
-          <select id="weaponSelect"></select>
+      <div id="hudTop">
+        <div class="plate plate-p1 cut" id="p1">
+          <div class="plateInfo"><span class="plateTag">Unit A</span><h2>Player 1</h2></div>
+          <div class="plateScore"><b class="scoreNum" id="scoreNumP1">0</b><i>pts</i></div>
+          <div class="ammo" id="ammoP1" role="img" aria-label="Shells left"></div>
+          <div class="score sr-only" id="scoreP1">0 pts</div>
         </div>
-        <div class="ctl">
-          <label for="angle">Angle</label>
-          <input type="range" id="angle" min="0" max="180" value="45">
-          <span class="val" id="angleVal">45°</span>
+
+        <div class="turnCore">
+          <div id="turnInfo"><span id="turnFlag">Player 1's</span> turn</div>
+          <div id="shotCount">Shot 1 of 20</div>
+          <div class="shotTrack" id="shotTrack" aria-hidden="true"></div>
+          <div class="telemetry" aria-hidden="true">
+            <span>Range <b id="telRange">—</b></span>
+            <span>Alt <b id="telAlt">—</b></span>
+            <span>Wind <b>nil</b></span>
+          </div>
         </div>
-        <div class="ctl">
-          <label for="power">Power</label>
-          <input type="range" id="power" min="10" max="100" value="60">
-          <span class="val" id="powerVal">60</span>
-        </div>
-        <div class="ctl" id="driveCtl">
-          <button id="driveLeft" class="secondary" type="button" aria-label="Move left" title="Move left (A)">&lt;</button>
-          <span id="drivesLeft" title="Moves left this round">4</span>
-          <button id="driveRight" class="secondary" type="button" aria-label="Move right" title="Move right (D)">&gt;</button>
-        </div>
-        <div id="controls">
-          <button id="fireBtn" type="button">Fire!</button>
-          <button id="teleportBtn" class="secondary" type="button" title="Once per round: jump a short way left or right, then fire">✨ Teleport</button>
-          <button id="newTerrainBtn" class="secondary" type="button">New terrain</button>
-          <button class="secondary menuBtn" type="button">← Menu</button>
+
+        <div class="plate plate-p2 cut" id="p2">
+          <div class="plateInfo"><span class="plateTag">Unit B</span><h2>Player 2</h2></div>
+          <div class="plateScore"><b class="scoreNum" id="scoreNumP2">0</b><i>pts</i></div>
+          <div class="ammo" id="ammoP2" role="img" aria-label="Shells left"></div>
+          <div class="score sr-only" id="scoreP2">0 pts</div>
         </div>
       </div>
 
+      <!-- FIRE CONTROL CONSOLE. The native select / sliders stay as the source of
+           truth for the game; the dials and weapon bay drive them (js/ui.js). -->
+      <div id="aimPanel" class="console">
+        <div class="consWing consWeapon">
+          <span class="consLabel">Ordnance</span>
+          <div class="wpnBay">
+            <button id="wpnPrev" class="wpnStep" type="button" aria-label="Previous weapon" data-snd="tick">‹</button>
+            <button id="wpnCard" class="wpnCard" type="button" aria-haspopup="listbox" aria-expanded="false" data-snd="panel">
+              <span class="wpnGlyph" id="wpnGlyph"></span>
+              <span class="wpnText"><strong id="wpnName">—</strong><span id="wpnMeta">—</span></span>
+              <span class="wpnCount" id="wpnCount" title="Weapons left">0</span>
+            </button>
+            <button id="wpnNext" class="wpnStep" type="button" aria-label="Next weapon" data-snd="tick">›</button>
+          </div>
+          <div id="wpnTray" class="wpnTray" role="listbox" aria-label="Weapons left" hidden></div>
+          <select id="weaponSelect" class="nativeCtl" tabindex="-1" aria-label="Weapon"></select>
+        </div>
+
+        <div class="consCore">
+          <div class="dial" id="angleDial" tabindex="0" role="slider" aria-label="Elevation" aria-valuemin="0" aria-valuemax="180" aria-valuenow="45">
+            <svg viewBox="0 0 120 70" aria-hidden="true">
+              <g class="dialFlip">
+                <path class="dialTrack" d="M110 62A50 50 0 0 0 10 62"/>
+                <path class="dialTicks" d="M110 62A50 50 0 0 0 10 62" pathLength="180"/>
+                <path class="dialValue" id="angleArc" d="M110 62A50 50 0 0 0 10 62" pathLength="180"/>
+                <line class="dialNeedle" id="angleNeedle" x1="60" y1="62" x2="104" y2="62"/>
+                <circle class="dialHub" cx="60" cy="62" r="4"/>
+              </g>
+            </svg>
+            <div class="dialRead"><span class="val" id="angleVal">45°</span><label for="angle">Elevation</label></div>
+            <button class="nudge nudgeDn" type="button" data-nudge="angle" data-step="-1" aria-label="Elevation down" data-snd="none">−</button>
+            <button class="nudge nudgeUp" type="button" data-nudge="angle" data-step="1" aria-label="Elevation up" data-snd="none">+</button>
+            <input type="range" id="angle" class="nativeCtl" min="0" max="180" value="45" tabindex="-1">
+          </div>
+
+          <button id="fireBtn" type="button" data-snd="none"><span>Fire</span><small>Space</small></button>
+
+          <div class="dial" id="powerDial" tabindex="0" role="slider" aria-label="Power" aria-valuemin="10" aria-valuemax="100" aria-valuenow="60">
+            <svg viewBox="0 0 120 70" aria-hidden="true">
+              <path class="dialTrack" d="M10 62A50 50 0 0 1 110 62"/>
+              <path class="dialValue dialPower" id="powerArc" d="M10 62A50 50 0 0 1 110 62" pathLength="90"/>
+              <path class="dialGaps" d="M10 62A50 50 0 0 1 110 62" pathLength="90"/>
+            </svg>
+            <div class="dialRead"><span class="val" id="powerVal">60</span><label for="power">Power</label></div>
+            <button class="nudge nudgeDn" type="button" data-nudge="power" data-step="-1" aria-label="Power down" data-snd="none">−</button>
+            <button class="nudge nudgeUp" type="button" data-nudge="power" data-step="1" aria-label="Power up" data-snd="none">+</button>
+            <input type="range" id="power" class="nativeCtl" min="10" max="100" value="60" tabindex="-1">
+          </div>
+        </div>
+
+        <div class="consWing consMove">
+          <span class="consLabel">Mobility</span>
+          <div class="moveRow">
+            <div class="ctl" id="driveCtl">
+              <button id="driveLeft" class="driveBtn" type="button" aria-label="Move left" title="Move left (A)" data-snd="none">◀</button>
+              <div class="drivePips" id="drivePips" title="Moves left this round" aria-hidden="true"></div>
+              <span id="drivesLeft" class="sr-only">4</span>
+              <button id="driveRight" class="driveBtn" type="button" aria-label="Move right" title="Move right (D)" data-snd="none">▶</button>
+            </div>
+            <button id="teleportBtn" class="btn btn-violet btn-sm" type="button" title="Once per round: jump a short way left or right, then fire (T)" data-snd="none">Teleport</button>
+          </div>
+          <div class="sysBtns">
+            <button id="newTerrainBtn" class="btn btn-ghost btn-xs" type="button" title="Restart the round on a new battlefield" data-snd="confirm">New terrain</button>
+            <button class="btn btn-ghost btn-xs menuBtn" type="button" data-snd="back">← Command</button>
+            <button class="btn btn-ghost btn-xs audioBtn" type="button" data-snd="panel">Audio</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEBRIEF: shown when the last shell has landed -->
       <div id="banner">
-        <div id="bannerText"></div>
-        <p id="bannerNote"></p>
-        <button id="rematchBtn" class="secondary" type="button">Rematch (same weapons)</button>
-        <button id="restartBtn" class="secondary" type="button">Choose weapons again</button>
+        <div class="debrief cut">
+          <span class="kicker" id="resultKicker">Mission complete</span>
+          <div id="resultTitle" class="resultTitle">Victory</div>
+          <div id="bannerText" class="resultSub"></div>
+          <div class="resultBoard">
+            <div class="resultCol resultP1" id="resultP1"></div>
+            <div class="resultVs" aria-hidden="true">vs</div>
+            <div class="resultCol resultP2" id="resultP2"></div>
+          </div>
+          <p id="bannerNote"></p>
+          <div class="resultBtns">
+            <button id="rematchBtn" class="btn btn-primary" type="button" title="Same weapons, new battlefield" data-snd="confirm">Replay mission</button>
+            <button id="restartBtn" class="btn btn-ghost" type="button" data-snd="select">Choose weapons again</button>
+            <button class="btn btn-ghost menuBtn" type="button" data-snd="back">Return to command</button>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- CHAT: only shown in online games -->
-  <section id="chat" class="card" hidden>
-    <h2>Chat</h2>
-    <div id="chatLog" class="chatLog" aria-live="polite"></div>
-    <form id="chatForm" class="chatForm">
-      <input id="chatInput" type="text" placeholder="Say something…" autocomplete="off" aria-label="Chat message">
-      <button id="chatSend" class="secondary" type="submit">Send</button>
-    </form>
+  <!-- COMMS: chat, only shown in online games -->
+  <section id="chat" class="chat" hidden>
+    <h2><button id="chatToggle" type="button" aria-expanded="true" data-snd="tick">Comms <i id="chatUnread" hidden></i></button></h2>
+    <div class="chatBody">
+      <div id="chatLog" class="chatLog" aria-live="polite"></div>
+      <form id="chatForm" class="chatForm">
+        <input id="chatInput" type="text" placeholder="Transmit message…" autocomplete="off" aria-label="Chat message">
+        <button id="chatSend" class="btn btn-ghost btn-sm" type="submit">Send</button>
+      </form>
+    </div>
   </section>
 
 </div>
 
+<!-- AUDIO SETTINGS -->
+<div id="settings" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+  <div class="modalCard cut">
+    <header>
+      <h2 id="settingsTitle">Audio systems</h2>
+      <button id="settingsClose" class="iconBtn" type="button" aria-label="Close" data-snd="back">✕</button>
+    </header>
+    <p id="audioState" class="audioState"></p>
+    <label class="setRow"><span>Master</span><input type="range" id="volMaster" min="0" max="100" step="1"><output id="volMasterOut"></output></label>
+    <label class="setRow"><span>Music</span><input type="range" id="volMusic" min="0" max="100" step="1"><output id="volMusicOut"></output></label>
+    <label class="setRow"><span>Effects</span><input type="range" id="volSfx" min="0" max="100" step="1"><output id="volSfxOut"></output></label>
+    <div class="setBtns">
+      <button id="muteBtn" class="btn btn-ghost" type="button" aria-pressed="false" data-snd="none">Mute all</button>
+      <button id="enableAudioBtn" class="btn btn-cyan" type="button" data-snd="none" hidden>Enable audio</button>
+    </div>
+  </div>
+</div>
+
 <!-- PeerJS: WebRTC helper + free signaling server (version pinned) -->
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="js/bus.js"></script>
 <script src="js/weapons.js"></script>
+<script src="js/art.js"></script>
 <script src="js/deterministic.js"></script>
 <script src="js/terrain.js"></script>
 <script src="js/effects.js"></script>
 <script src="js/bot.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/holo.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/ui.js"></script>
 <script src="js/game.js"></script>
 <script src="js/protocol.js"></script>
 <script src="js/net-config.js"></script>

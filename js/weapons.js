@@ -12,10 +12,10 @@
 //            and scores only if it hits the opponent's tank
 window.TT = window.TT || {};
 TT.CATEGORIES = [
-  { id: 'shooter', name: 'Shooters',    color: '#8ad6ff', blurb: 'Tight blasts, reliable damage.' },
-  { id: 'dirt',    name: 'Dirt Movers', color: '#c9a15c', blurb: 'Reshape the battlefield.' },
-  { id: 'attacker',name: 'Attackers',   color: '#ff5c5c', blurb: 'Big radius, big damage.' },
-  { id: 'magic',   name: 'Magical',     color: '#c98aff', blurb: 'Multi-blasts, fire and burrowing beasts.' }
+  { id: 'shooter', name: 'Shooters',    color: '#3be8ff', blurb: 'Tight blasts, reliable damage.' },
+  { id: 'dirt',    name: 'Dirt Movers', color: '#d8b36a', blurb: 'Reshape the battlefield.' },
+  { id: 'attacker',name: 'Attackers',   color: '#ff7a1f', blurb: 'Big radius, big damage.' },
+  { id: 'magic',   name: 'Magical',     color: '#b88cff', blurb: 'Multi-blasts, fire and burrowing beasts.' }
 ];
 
 TT.WEAPONS = [
@@ -52,3 +52,7 @@ TT.WEAPONS = [
 // Score value per category: how many points a fully accurate hit is worth.
 // Dirt movers score nothing since they're for reshaping terrain, not attack.
 TT.CATEGORY_MAX_POINTS = { shooter: 100, magic: 75, attacker: 50, dirt: 0 };
+
+// Near miss: a blast that doesn't reach the tank still scores a little if it
+// goes off within this many px beyond its own reach. Points fade to 0 at the limit.
+TT.NEAR_MISS_PX = 45;

@@ -14,6 +14,8 @@ window.TT = window.TT || {};
 TT.Online = (function () {
   "use strict";
   const Game = TT.Game, Net = TT.Net, Protocol = TT.Protocol;
+  // Presentation hook (HUD, sound). Listeners can't change the game (js/bus.js).
+  function emit(name, data) { if (TT.Bus) TT.Bus.emit(name, data); }
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const SYNC_CHUNK = 150;   // moves per catch-up message (keeps messages small)
 
@@ -155,12 +157,14 @@ TT.Online = (function () {
     if (role === 'guest') Net.send({ type: 'hello', gameId, count });
     addChatLine(null, role === 'host' ? 'Opponent joined.' : 'Connected to host.');
     updateUI();
+    emit('net:connected', { role });
   }
 
   function onDisconnected(reason) {
     connected = false; ready = false; pending = false; queue = [];
     addChatLine(null, reason);
     updateUI();
+    emit('net:disconnected', { role, reason });
   }
 
   function onLatency(ms) {
@@ -297,7 +301,7 @@ TT.Online = (function () {
   function showStatus(state, text) {
     netState = state;
     if (state === 'connected') {
-      text = `Connected · you are Player ${role === 'host' ? '1 (red)' : '2 (blue)'}` +
+      text = `Connected · you are Player ${role === 'host' ? '1 (amber, Unit A)' : '2 (violet, Unit B)'}` +
         (latency !== null ? ` · ${latency} ms` : '');
       if (!ready) text = 'Connected · syncing…';
     } else if (state === 'local') {
@@ -306,6 +310,7 @@ TT.Online = (function () {
     el.status.dataset.state = state;
     el.status.textContent = text;
     updateButtons();
+    emit('net', { state, text, role });
   }
 
   function updateButtons() {
@@ -359,6 +364,7 @@ TT.Online = (function () {
     el.chatLog.appendChild(line);
     while (el.chatLog.children.length > 60) el.chatLog.firstChild.remove();
     el.chatLog.scrollTop = el.chatLog.scrollHeight;
+    emit('chat', { who });
   }
 
   document.addEventListener('DOMContentLoaded', init);

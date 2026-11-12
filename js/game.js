@@ -36,6 +36,10 @@ TT.Game = (function () {
 
   let el = {};
 
+  // Tell the presentation layers (HUD, sound, scenery) what just happened.
+  // They only listen: nothing they do can change the game (see js/bus.js).
+  function emit(name, data) { if (TT.Bus) TT.Bus.emit(name, data); }
+
   function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
@@ -123,8 +127,9 @@ TT.Game = (function () {
     el.startBtn.addEventListener('click', startRound);
     el.randomBtn.addEventListener('click', () => act({ type: 'random', seed: Det.newSeed() }));
     el.angle.addEventListener('input', () => { el.angleVal.textContent = el.angle.value + '°'; draw(); aimChanged(); });
-    el.power.addEventListener('input', () => { el.powerVal.textContent = el.power.value; aimChanged(); });
+    el.power.addEventListener('input', () => { el.powerVal.textContent = el.power.value; draw(); aimChanged(); });
     el.weaponSelect.addEventListener('change', aimChanged);
+    requestAnimationFrame(idleFrame);
     // Switching tab/app mid-shot: finish the shot now instead of freezing.
     document.addEventListener('visibilitychange', () => { if (document.hidden) skipFlight(); });
     el.fireBtn.addEventListener('click', fire);
@@ -199,7 +204,7 @@ TT.Game = (function () {
       case 'random': randomDistribute(move.seed); break;
       case 'round':
         if (phase === 'draft') showScreen('battle');
-        newRound(move.seed, move.width);
+        newRound(move.seed, move.width, instant);
         break;
       case 'redraft': backToSelect(); break;
       case 'fire': fireShot(by, move.weapon, move.angle, move.power, instant); break;
@@ -209,11 +214,14 @@ TT.Game = (function () {
   }
 
   function showScreen(p) {
+    const changed = phase !== p;
     phase = p;
-    el.modeScreen.style.display = p === 'menu' ? 'block' : 'none';
-    el.selectScreen.style.display = p === 'draft' ? 'block' : 'none';
-    el.gameScreen.style.display = p === 'battle' ? '' : 'none';
+    el.modeScreen.hidden = p !== 'menu';
+    el.selectScreen.hidden = p !== 'draft';
+    el.gameScreen.hidden = p !== 'battle';
     document.body.classList.toggle('battle', p === 'battle');
+    document.body.dataset.screen = p;
+    emit('screen', { phase: p, changed });
   }
 
   // ---- Mode select screen ----
@@ -265,6 +273,7 @@ TT.Game = (function () {
     el.angleVal.textContent = aim.angle + '°';
     el.powerVal.textContent = aim.power;
     draw();
+    emit('aim', { remote: true });
     botTimer = setTimeout(() => {
       botTimer = null;
       if (isBotTurn()) botMove({ type: 'fire', weapon, angle: aim.angle, power: aim.power });
@@ -281,7 +290,11 @@ TT.Game = (function () {
     CATEGORIES.forEach(cat => {
       const section = document.createElement('div');
       section.className = 'weaponCategory';
-      section.innerHTML = `<h3 style="color:${cat.color}">${cat.name}</h3><p class="catBlurb">${cat.blurb}</p>`;
+      section.style.setProperty('--wcolor', cat.color);
+      const points = TT.CATEGORY_MAX_POINTS[cat.id] || 0;
+      section.innerHTML = `<div class="catHead"><h3>${cat.name}</h3>` +
+        `<span class="catPts">${points ? 'up to ' + points + ' pts' : 'no score'}</span></div>` +
+        `<p class="catBlurb">${cat.blurb}</p>`;
       const grid = document.createElement('div');
       grid.className = 'weaponGrid';
       WEAPONS.filter(w => w.category === cat.id).forEach(w => {
@@ -289,8 +302,10 @@ TT.Game = (function () {
         btn.type = 'button';
         btn.className = 'weaponCard';
         btn.dataset.id = w.id;
+        btn.dataset.snd = 'none'; // the pick itself makes the sound
         btn.style.setProperty('--wcolor', cat.color);
-        btn.innerHTML = `<span class="wicon">${w.icon}</span><strong>${w.name}</strong><span class="wdesc">${w.desc}</span>`;
+        btn.innerHTML = `<span class="wicon">${TT.Art.glyph(w.id)}</span><strong>${w.name}</strong>` +
+          `<span class="wdesc">${w.desc}</span><span class="wrad"><b>${w.radius}</b>blast</span>`;
         btn.addEventListener('click', () => act({ type: 'pick', id: w.id }));
         grid.appendChild(btn);
       });
@@ -305,6 +320,7 @@ TT.Game = (function () {
     draftTurn = null;
     loadout = inventory.map(list => list.slice());
     updateDraftUI();
+    emit('random');
   }
 
   function choosePick(by, id) {
@@ -313,6 +329,7 @@ TT.Game = (function () {
     draftTurn = totalTaken >= TOTAL_PICKS ? null : 1 - by;
     if (draftTurn === null) loadout = inventory.map(list => list.slice());
     updateDraftUI();
+    emit('pick', { by, id, mine: isMe(by), done: draftTurn === null });
   }
 
   function takenText(owner) {
@@ -325,11 +342,11 @@ TT.Game = (function () {
       const id = btn.dataset.id;
       const owner = inventory[0].includes(id) ? 0 : inventory[1].includes(id) ? 1 : -1;
       btn.classList.toggle('taken', owner !== -1);
-      if (owner !== -1) btn.querySelector('.wdesc').textContent = takenText(owner);
+      if (owner !== -1) { btn.querySelector('.wdesc').textContent = takenText(owner); btn.dataset.owner = owner; }
       btn.disabled = owner !== -1 || draftTurn === null || !canControl(draftTurn);
     });
     if (draftTurn === null) {
-      el.draftPrompt.textContent = 'Both players are fully armed (10 weapons each).';
+      el.draftPrompt.textContent = 'Both units are fully armed (10 weapons each).';
     } else if (!isSolo()) {
       el.draftPrompt.textContent = `Player ${draftTurn + 1}, choose your weapon`;
     } else {
@@ -337,12 +354,13 @@ TT.Game = (function () {
     }
     const guest = isOnline() && !isMe(0);
     el.startBtn.disabled = draftTurn !== null || !canControl(0);
-    el.startBtn.textContent = guest ? 'Waiting for the host to start…' : 'Start battle';
+    el.startBtn.textContent = guest ? 'Waiting for the host to start…' : 'Start mission';
     el.randomBtn.hidden = guest;
     el.randomBtn.disabled = !canControl(0);
     el.pickSummary.textContent =
       `${label(0)}: ${inventory[0].length}/10 picked   ·   ${label(1)}: ${inventory[1].length}/10 picked`;
     document.querySelectorAll('.menuBtn').forEach(b => { b.hidden = isOnline(); }); // online uses "Leave"
+    emit('draft');
     if (phase === 'draft') scheduleBot();
   }
 
@@ -373,14 +391,17 @@ TT.Game = (function () {
   function arenaWidth() {
     const bar = document.getElementById('onlineBar');
     const panel = document.getElementById('aimPanel');
-    const h = window.innerHeight - (bar.offsetHeight || 0) - (panel.offsetHeight || 60) - 20;
+    // Before the first battle the console isn't on screen yet: use its usual height.
+    const stacked = window.innerWidth <= 760 || (window.innerWidth <= 900 && window.innerHeight > 520);
+    const panelH = panel.offsetHeight || (stacked ? 190 : 120);
+    const h = window.innerHeight - (bar.offsetHeight || 0) - panelH - 20;
     const w = Math.round(H * window.innerWidth / Math.max(1, h));
     return Math.max(MIN_W, Math.min(MAX_W, w));
   }
   function startRound() { act({ type: 'round', seed: Det.newSeed(), width: arenaWidth() }); }
 
   // The seed makes terrain identical on both online players' screens.
-  function newRound(seed, width) {
+  function newRound(seed, width, instant) {
     W = width;
     const rand = Det.rng(seed);
     Terrain.generate(W, H, rand);
@@ -402,6 +423,8 @@ TT.Game = (function () {
     TT.Effects.clear();
     gameOver = false;
     el.banner.style.display = 'none';
+    resizeCanvas(); // the arena width may have changed
+    emit('round', { quiet: !!instant });
     updateHUD();
     draw();
   }
@@ -435,7 +458,7 @@ TT.Game = (function () {
     const myTurn = phase === 'battle' && !gameOver && !isBusy() && !isDriving() && canControl(current);
     el.fireBtn.disabled = el.angle.disabled = el.power.disabled = el.weaponSelect.disabled = !myTurn;
     el.teleportBtn.disabled = !myTurn || teleportUsed[current];
-    el.teleportBtn.textContent = teleportUsed[current] ? '✨ Teleport used' : '✨ Teleport';
+    el.teleportBtn.textContent = teleportUsed[current] ? 'Teleport used' : 'Teleport';
     el.drivesLeft.textContent = players ? drivesLeft[current] : MAX_DRIVES;
     el.driveLeft.disabled = el.driveRight.disabled = !myTurn || !drivesLeft[current];
     const guest = isOnline() && !isMe(0);
@@ -443,7 +466,28 @@ TT.Game = (function () {
     el.newTerrainBtn.disabled = isBusy() || !canControl(0);
     el.rematchBtn.disabled = el.restartBtn.disabled = !canControl(0);
     el.bannerNote.textContent = guest ? 'Waiting for the host to start the next round…' : '';
+    emit('hud');
     if (phase === 'battle') scheduleBot();
+  }
+
+  // A read-only snapshot of the game for the HUD, sound and scenery.
+  function state() {
+    const inBattle = phase === 'battle' && !!players;
+    return {
+      phase, mode: isOnline() ? 'online' : mode, botLevel, online: isOnline(), solo: isSolo(),
+      labels: [label(0), label(1)], me: [isMe(0), isMe(1)],
+      draftTurn, total: TOTAL_PICKS,
+      inventory: inventory.map(list => list.slice()),
+      loadout: loadout.map(list => list.slice()),
+      current: inBattle ? current : 0,
+      gameOver: !!gameOver, busy: isBusy(),
+      myTurn: inBattle && !gameOver && !isBusy() && !isDriving() && canControl(current),
+      dir: inBattle ? players[current].dir : 1,
+      scores: inBattle ? players.map(p => p.score) : [0, 0],
+      drives: drivesLeft.slice(), maxDrives: MAX_DRIVES, teleportUsed: teleportUsed.slice(),
+      tanks: inBattle ? players.map(p => ({ x: p.x, y: p.y })) : null,
+      world: { w: W, h: H }, view
+    };
   }
 
   function refreshUI() {
@@ -466,11 +510,16 @@ TT.Game = (function () {
   }
 
   // ---- Rendering ----
+  // The canvas holds only the playfield (ridges, ground, units, shells and
+  // bursts) on a transparent background. The sky behind it is its own layer,
+  // painted by js/scene.js, so it can drift with the pointer.
+  const TAU = Math.PI * 2;
+
   function resizeCanvas() {
     const box = canvas.parentElement.getBoundingClientRect();
     if (!box.width || !box.height) return;
-    const dpr = window.devicePixelRatio || 1;
-    // Keep the playable ground clear of the aim panel; scenery runs underneath it.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Keep the playable ground clear of the console; scenery runs underneath it.
     const panel = document.getElementById('aimPanel');
     const fitH = Math.max(box.height * 0.4, box.height - panel.offsetHeight - 20);
     const scale = Math.min(box.width / W, fitH / H);
@@ -478,6 +527,7 @@ TT.Game = (function () {
       ox: (box.width - W * scale) / 2, oy: fitH - H * scale };
     canvas.width = Math.round(box.width * dpr);
     canvas.height = Math.round(box.height * dpr);
+    emit('view', { w: box.width, h: box.height, scale, horizon: view.oy + H * 0.47 * scale });
     draw();
   }
 
@@ -487,108 +537,91 @@ TT.Game = (function () {
     return { left, top, right: left + view.w / view.scale, bottom: top + view.h / view.scale };
   }
 
-  function drawSky() {
-    const r = viewRect();
-    const g = ctx.createLinearGradient(0, Math.min(0, r.top), 0, H);
-    g.addColorStop(0, cssVar('--sky-top'));
-    g.addColorStop(0.55, cssVar('--sky-mid'));
-    g.addColorStop(1, cssVar('--sky-bot'));
-    ctx.fillStyle = g;
-    ctx.fillRect(r.left, r.top, r.right - r.left, H - r.top);
+  // '#rrggbb' + alpha -> 'rgba(r,g,b,a)'
+  function rgba(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
   }
 
-  // Scenery only (never affects play), so plain Math.random is fine here.
-  const STARS = Array.from({ length: 70 }, () => ({
-    u: Math.random(), v: Math.random() ** 1.6, r: 0.4 + Math.random() * 0.8, a: 0.15 + Math.random() * 0.4
-  }));
-  let soilPattern = null;
-  function soilTexture() {
-    if (soilPattern) return soilPattern;
+  // Faint survey grid inside the ground (scenery only).
+  let gridPattern = null;
+  function groundGrid() {
+    if (gridPattern) return gridPattern;
     const c = document.createElement('canvas');
-    c.width = c.height = 96;
+    c.width = c.height = 40;
     const t = c.getContext('2d');
-    for (let i = 0; i < 140; i++) { // specks of grit and pebbles
-      t.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.18)' : 'rgba(255,220,180,0.06)';
-      t.beginPath();
-      t.arc(Math.random() * 96, Math.random() * 96, 0.4 + Math.random() * 1.3, 0, Math.PI * 2);
-      t.fill();
+    t.strokeStyle = 'rgba(110,190,255,0.09)';
+    t.lineWidth = 1;
+    t.beginPath(); t.moveTo(0.5, 0); t.lineTo(0.5, 40); t.moveTo(0, 0.5); t.lineTo(40, 0.5); t.stroke();
+    t.fillStyle = 'rgba(170,225,255,0.24)';
+    t.fillRect(0, 0, 2, 2);
+    for (let i = 0; i < 26; i++) { // grit
+      t.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.22)' : 'rgba(150,180,255,0.05)';
+      t.fillRect(Math.random() * 40, Math.random() * 40, 1.2, 1.2);
     }
-    soilPattern = ctx.createPattern(c, 'repeat');
-    return soilPattern;
+    gridPattern = ctx.createPattern(c, 'repeat');
+    return gridPattern;
   }
 
-  // Faint stars and two hazy ridges of distant hills behind the battlefield.
+  // Two ridges of dark alien rock behind the battlefield, each with thin spires
+  // and a faint lit rim. Scenery only, so plain Math.sin is fine here.
+  const RIDGES = [
+    [H * 0.5, 34, 0.0031, 'rgba(10,14,32,0.9)', 'rgba(140,165,255,0.12)'],
+    [H * 0.6, 26, 0.0052, 'rgba(6,9,20,0.97)', 'rgba(90,200,255,0.09)']
+  ];
+  function ridgeY(x, base, amp, freq) {
+    const spire = Math.max(0, Math.sin(x * freq * 23 + base)) ** 10;
+    return base - amp * (Math.sin(x * freq * 6.283) * 0.6 + Math.sin(x * freq * 15.1 + 1.7) * 0.4) - spire * amp * 0.9;
+  }
   function drawBackdrop() {
     const r = viewRect();
-    const skyH = H * 0.45 - r.top;
-    ctx.fillStyle = '#fff6ec';
-    STARS.forEach(st => {
-      ctx.globalAlpha = st.a;
-      ctx.beginPath();
-      ctx.arc(r.left + st.u * (r.right - r.left), r.top + st.v * skyH, st.r, 0, Math.PI * 2);
-      ctx.fill();
+    RIDGES.forEach(([base, amp, freq, fill, rim]) => {
+      const top = new Path2D();
+      for (let x = Math.floor(r.left); x <= r.right + 4; x += 4) top.lineTo(x, ridgeY(x, base, amp, freq));
+      const body = new Path2D(top);
+      body.lineTo(r.right + 4, r.bottom); body.lineTo(r.left, r.bottom); body.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill(body);
+      ctx.strokeStyle = rim;
+      ctx.lineWidth = 1;
+      ctx.stroke(top);
     });
-    ctx.globalAlpha = 1;
-    [[H * 0.5, 34, 0.0031, cssVar('--hills-far')], [H * 0.6, 26, 0.0052, cssVar('--hills-near')]]
-      .forEach(([base, amp, freq, color]) => {
-        ctx.beginPath();
-        ctx.moveTo(r.left, r.bottom);
-        for (let x = Math.floor(r.left); x <= r.right + 8; x += 8) {
-          ctx.lineTo(x, base - amp * (Math.sin(x * freq * 6.283) * 0.6 + Math.sin(x * freq * 15.1 + 1.7) * 0.4));
-        }
-        ctx.lineTo(r.right, r.bottom);
-        ctx.closePath();
-        ctx.fillStyle = color;
-        ctx.fill();
-      });
-  }
-
-  // lineTo (not moveTo) so it can continue the ground polygon; on an empty path it starts one
-  function traceSurface(heights, r) {
-    ctx.lineTo(r.left, heights[0]);
-    for (let x = 0; x < W; x++) ctx.lineTo(x, heights[x]);
-    ctx.lineTo(r.right, heights[W - 1]);
   }
 
   function drawTerrain() {
     const heights = Terrain.all();
     const r = viewRect();
-    ctx.beginPath();
-    ctx.moveTo(r.left, r.bottom);
-    traceSurface(heights, r);
-    ctx.lineTo(r.right, r.bottom);
-    ctx.closePath();
-    const g = ctx.createLinearGradient(0, H * 0.4, 0, H);
-    g.addColorStop(0, cssVar('--ground'));
-    g.addColorStop(1, cssVar('--ground-dark'));
+    const surf = new Path2D();
+    surf.moveTo(r.left, heights[0]);
+    for (let x = 0; x < W; x++) surf.lineTo(x, heights[x]);
+    surf.lineTo(r.right, heights[W - 1]);
+    const body = new Path2D(surf);
+    body.lineTo(r.right, r.bottom); body.lineTo(r.left, r.bottom); body.closePath();
+
+    const g = ctx.createLinearGradient(0, H * 0.35, 0, H);
+    g.addColorStop(0, '#1b2442');
+    g.addColorStop(0.5, '#0d1224');
+    g.addColorStop(1, '#05060d');
     ctx.fillStyle = g;
-    ctx.fill();
+    ctx.fill(body);
 
     ctx.save();
-    ctx.clip();
-    ctx.fillStyle = soilTexture();
+    ctx.clip(body);
+    ctx.fillStyle = groundGrid();
     ctx.fillRect(r.left, r.top, r.right - r.left, r.bottom - r.top);
-    // a lighter band of topsoil just under the surface
-    ctx.translate(0, 7);
-    ctx.beginPath();
-    traceSurface(heights, r);
-    ctx.strokeStyle = cssVar('--topsoil');
-    ctx.globalAlpha = 0.45;
-    ctx.lineWidth = 14;
+    // energy seeping down from the surface
     ctx.lineJoin = 'round';
-    ctx.stroke();
+    ctx.translate(0, 9);
+    ctx.strokeStyle = 'rgba(59,232,255,0.10)'; ctx.lineWidth = 20; ctx.stroke(surf);
+    ctx.translate(0, 14);
+    ctx.strokeStyle = 'rgba(169,123,255,0.07)'; ctx.lineWidth = 22; ctx.stroke(surf);
     ctx.restore();
 
-    // crisp sunlit crust along the top edge
-    ctx.beginPath();
-    traceSurface(heights, r);
+    // glowing crust along the top edge: soft halo, bright line, white-hot core
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = cssVar('--crust');
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,230,190,0.25)';
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
+    ctx.strokeStyle = 'rgba(59,232,255,0.10)'; ctx.lineWidth = 6; ctx.stroke(surf);
+    ctx.strokeStyle = 'rgba(59,232,255,0.42)'; ctx.lineWidth = 2; ctx.stroke(surf);
+    ctx.strokeStyle = 'rgba(220,250,255,0.75)'; ctx.lineWidth = 0.8; ctx.stroke(surf);
   }
 
   function roundRect(x, y, w, h, r) {
@@ -600,86 +633,193 @@ TT.Game = (function () {
     ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
   }
+  function poly(points) {
+    ctx.beginPath();
+    points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+    ctx.closePath();
+  }
+  function line(x1, y1, x2, y2) {
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
 
   function angleForPlayer(p) {
     return (players[current] === p && !projectiles.length) ? Number(el.angle.value) : 35;
   }
+  // How far the hull leans on the slope it's standing on.
+  function tankTilt(x) { return Math.max(-1, Math.min(1, Math.atan(-groundGrade(x, 1)))); }
+
+  // '#rrggbb' mixed toward white by k (0 = unchanged, 1 = white)
+  function tint(hex, k) {
+    const n = parseInt(hex.slice(1), 16);
+    const mix = v => Math.round(v + (255 - v) * k);
+    return `rgb(${mix(n >> 16 & 255)},${mix(n >> 8 & 255)},${mix(n & 255)})`;
+  }
 
   // Hull and treads tilt with the slope; the barrel keeps the true aim angle
-  // and its tip lines up with where makeShell launches the shell.
+  // and its tip lines up with where makeShell launches the shell. The hull is
+  // 30 px wide: the same width the scoring zones are measured against.
+  // The unit must read at a glance against busy scenery: a dark pocket behind
+  // it, a hull in the unit's own bright colour, and a white rim.
   function drawTank(p) {
     const pos = tankPos(p);
-    const tilt = Math.max(-1, Math.min(1, Math.atan(-groundGrade(pos.x, 1))));
+    const tilt = tankTilt(pos.x);
     const rad = angleForPlayer(p) * Math.PI / 180;
+    const active = p === players[current] && !gameOver;
+    const blink = active && Math.sin(performance.now() / 160) > 0;
     ctx.save();
     ctx.translate(pos.x, pos.y);
-    if (isBuried(p)) ctx.globalAlpha = 0.35; // faint: it's under the dirt
+    if (isBuried(p)) ctx.globalAlpha = 0.4; // faint: it's under the dirt
 
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; // contact shadow
-    ctx.beginPath();
-    ctx.ellipse(0, 1, 17, 3, tilt, 0, Math.PI * 2);
-    ctx.fill();
+    // dark pocket, then the unit's own light on the ground
+    const pocket = ctx.createRadialGradient(0, -9, 6, 0, -9, 36);
+    pocket.addColorStop(0, 'rgba(2,3,10,0.7)');
+    pocket.addColorStop(1, 'rgba(2,3,10,0)');
+    ctx.fillStyle = pocket;
+    ctx.beginPath(); ctx.arc(0, -9, 36, 0, TAU); ctx.fill();
+    ctx.save();
+    ctx.rotate(tilt);
+    ctx.scale(1, 0.3);
+    const pool = ctx.createRadialGradient(0, 0, 0, 0, 0, 32);
+    pool.addColorStop(0, rgba(p.color, active ? 0.6 : 0.35));
+    pool.addColorStop(1, rgba(p.color, 0));
+    ctx.fillStyle = pool;
+    ctx.beginPath(); ctx.arc(0, 0, 32, 0, TAU); ctx.fill();
+    ctx.restore();
 
-    if (p === players[current] && !gameOver) { // whose turn: a small chevron overhead
-      ctx.fillStyle = p.color;
+    if (!active && !gameOver) { // the waiting unit keeps a small marker overhead
+      ctx.fillStyle = rgba(p.color, 0.8);
       ctx.beginPath();
-      ctx.moveTo(-5, -40); ctx.lineTo(5, -40); ctx.lineTo(0, -34);
+      ctx.moveTo(-4, -38); ctx.lineTo(4, -38); ctx.lineTo(0, -33);
       ctx.closePath();
       ctx.fill();
     }
 
     // barrel, pivoting on the turret
     const px = Math.sin(tilt) * 11, py = -Math.cos(tilt) * 11;
-    const tx = px + Math.cos(rad) * 22 * p.dir, ty = py - Math.sin(rad) * 22;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#17121a';
-    ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tx, ty); ctx.stroke();
-    ctx.strokeStyle = p.dark;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    ctx.strokeStyle = '#17121a'; // muzzle brake
-    ctx.lineWidth = 5.5;
+    const bx = Math.cos(rad) * p.dir, by = -Math.sin(rad);
+    const tx = px + bx * 22, ty = py + by * 22;
     ctx.lineCap = 'butt';
-    ctx.beginPath();
-    ctx.moveTo(tx - Math.cos(rad) * 4 * p.dir, ty + Math.sin(rad) * 4);
-    ctx.lineTo(tx, ty);
-    ctx.stroke();
+    ctx.strokeStyle = '#03040a'; ctx.lineWidth = 6.4; line(px, py, tx, ty);
+    ctx.strokeStyle = tint(p.color, 0.25); ctx.lineWidth = 3.8; line(px, py, tx, ty);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 0.9; line(px + bx * 4, py + by * 4, tx - bx * 5, ty - by * 5);
+    ctx.strokeStyle = '#03040a'; ctx.lineWidth = 7.2; line(tx - bx * 4.5, ty - by * 4.5, tx, ty); // muzzle brake
+    ctx.strokeStyle = tint(p.color, 0.5); ctx.lineWidth = 4.6; line(tx - bx * 3.6, ty - by * 3.6, tx - bx * 0.9, ty - by * 0.9);
+    if (active) {
+      ctx.save();
+      ctx.shadowColor = p.color; ctx.shadowBlur = 9;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(tx, ty, 1.5, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
 
     ctx.rotate(tilt);
+    ctx.scale(p.dir, 1); // the hull's nose points at the opponent
+    const rim = 'rgba(255,255,255,0.92)';
     // treads and road wheels
-    ctx.fillStyle = '#1d181f';
+    ctx.fillStyle = '#05060c';
     roundRect(-15, -6.5, 30, 6.5, 3.2);
     ctx.fill();
-    const spin = pos.x / 2; // wheels roll as the tank drives (radius 2)
+    ctx.strokeStyle = tint(p.color, 0.45); ctx.lineWidth = 0.9; ctx.stroke();
+    const spin = pos.x / 2 * p.dir; // wheels roll as the unit drives (radius 2)
     const sx = Math.cos(spin) * 1.7, sy = Math.sin(spin) * 1.7;
-    ctx.strokeStyle = '#1d181f';
-    ctx.lineWidth = 0.7;
     [-10, -3.5, 3.5, 10].forEach(wx => {
-      ctx.fillStyle = '#5a4e5e';
-      ctx.beginPath(); ctx.arc(wx, -3.2, 2, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(wx - sx, -3.2 - sy); ctx.lineTo(wx + sx, -3.2 + sy); ctx.stroke();
+      ctx.fillStyle = tint(p.color, 0.2);
+      ctx.beginPath(); ctx.arc(wx, -3.2, 2, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#05060c'; ctx.lineWidth = 0.8;
+      line(wx - sx, -3.2 - sy, wx + sx, -3.2 + sy);
     });
 
-    // hull and turret dome, lit from above
-    const shade = ctx.createLinearGradient(0, -17, 0, -6);
-    shade.addColorStop(0, p.color);
-    shade.addColorStop(1, p.dark);
+    // armoured hull in the unit's colour, glowing a little
+    let shade = ctx.createLinearGradient(0, -12, 0, -6);
+    shade.addColorStop(0, tint(p.color, 0.3));
+    shade.addColorStop(1, p.color);
+    ctx.shadowColor = p.color; ctx.shadowBlur = active ? 14 : 9;
     ctx.fillStyle = shade;
-    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(-14, -6); ctx.lineTo(-11.5, -11); ctx.lineTo(11.5, -11); ctx.lineTo(14, -6);
-    ctx.closePath();
+    poly([[-14, -6.2], [-13.5, -9.6], [-8, -12], [9, -12], [14.5, -8.8], [14.5, -6.2]]);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = rim; ctx.lineWidth = 0.9; ctx.stroke();
+    // turret
+    shade = ctx.createLinearGradient(0, -17.5, 0, -12);
+    shade.addColorStop(0, tint(p.color, 0.6));
+    shade.addColorStop(1, tint(p.color, 0.15));
+    ctx.fillStyle = shade;
+    poly([[-6.5, -12], [-4.5, -17.5], [4, -17.5], [8, -12]]);
     ctx.fill(); ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, -11, 6.5, Math.PI, 0);
-    ctx.closePath();
-    ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; // highlights
+    // panel line, reactor core, antenna beacon
+    ctx.strokeStyle = 'rgba(3,4,10,0.6)'; ctx.lineWidth = 1.1;
+    line(-12.4, -8.1, 13.2, -8.1);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(0.5, -14.7, 1.6, 0, TAU); ctx.fill();
+    ctx.strokeStyle = rim; ctx.lineWidth = 0.7;
+    line(-5, -17.5, -8, -24.5);
+    ctx.fillStyle = blink || !active ? tint(p.color, 0.4) : 'rgba(255,255,255,0.3)';
+    ctx.beginPath(); ctx.arc(-8, -24.5, 1.3, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  // Targeting overlay on the unit whose turn it is: an elevation arc, the
+  // bearing the barrel is on, and a vector whose length follows the power.
+  // It only shows the two numbers already on the console (angle and power);
+  // it does not predict where the shell lands. Kept thin and clear of the hull
+  // so it never hides the unit.
+  function drawReticle() {
+    if (gameOver || projectiles.length) return;
+    const p = players[current], pos = tankPos(p);
+    const tilt = tankTilt(pos.x);
+    const px = pos.x + Math.sin(tilt) * 11, py = pos.y - Math.cos(tilt) * 11;
+    const deg = Number(el.angle.value), power = Number(el.power.value);
+    const rad = deg * Math.PI / 180;
+    const bx = Math.cos(rad) * p.dir, by = -Math.sin(rad);
+    const t = performance.now() / 1000;
+    const R = 42;
+
+    ctx.save();
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = rgba(p.color, 0.22);
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(-10.5, -10.3); ctx.lineTo(10.5, -10.3); ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, -11, 5, Math.PI * 1.15, Math.PI * 1.55); ctx.stroke();
+    ctx.beginPath(); ctx.arc(px, py, R, Math.PI, 0); ctx.stroke();
+    for (let a = 0; a <= 180; a += 45) {
+      const c = Math.cos(a * Math.PI / 180), s = Math.sin(a * Math.PI / 180);
+      line(px + c * R, py - s * R, px + c * (R + 4), py - s * (R + 4));
+    }
+    // swept from level (facing the opponent) up to the barrel
+    ctx.strokeStyle = rgba(p.color, 0.85);
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(px, py, R, p.dir === 1 ? 0 : Math.PI, Math.atan2(by, bx), p.dir === 1);
+    ctx.stroke();
+
+    // power vector, starting beyond the muzzle
+    const start = 30, len = 14 + power * 0.9;
+    ctx.setLineDash([5, 4]);
+    ctx.lineDashOffset = -t * 26;
+    ctx.lineWidth = 1.2;
+    line(px + bx * start, py + by * start, px + bx * (start + len), py + by * (start + len));
+    ctx.setLineDash([]);
+    const ex = px + bx * (start + len + 6), ey = py + by * (start + len + 6);
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.rotate(t * 1.3);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-3, -3, 6, 6);
+    ctx.restore();
+
+    // marker bobbing over the unit to say "your move"
+    const cy = pos.y - 44 + Math.sin(t * 3) * 2.5;
+    ctx.fillStyle = tint(p.color, 0.3);
+    ctx.beginPath();
+    ctx.moveTo(pos.x - 5, cy); ctx.lineTo(pos.x + 5, cy); ctx.lineTo(pos.x, cy + 6);
+    ctx.closePath();
+    ctx.fill();
+
+    if (view.scale >= 0.7) { // too small to read on a shrunken arena
+      ctx.font = '700 9px Orbitron, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`${deg}° / ${power}`, ex + bx * 6, Math.max(viewRect().top + 12, ey + by * 6 - 8));
+    }
     ctx.restore();
   }
 
@@ -698,12 +838,15 @@ TT.Game = (function () {
         ctx.lineTo(-7, 4); ctx.lineTo(2, 4); ctx.closePath();
         ctx.fill();
         break;
-      case 'dirt': // rough clod of earth, not direction-locked
-        ctx.rotate(-angle); // undo rotation, dirt tumbles randomly
-        ctx.fillStyle = '#8a6b3d';
-        [[0, 0, 5], [3, -2, 3], [-3, 2, 3], [-2, -3, 2.5]].forEach(([dx, dy, r]) => {
-          ctx.beginPath(); ctx.arc(dx, dy, r, 0, Math.PI * 2); ctx.fill();
-        });
+      case 'dirt': // canister of regolith with a hazard band, tumbling
+        ctx.rotate(-angle + pr.steps * 0.2);
+        ctx.fillStyle = '#3a4258';
+        roundRect(-7, -4.5, 14, 9, 2.5);
+        ctx.fill();
+        ctx.fillStyle = pr.color;
+        ctx.fillRect(-2.5, -4.5, 5, 9);
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 0.7;
+        line(-6, -3.4, 6, -3.4);
         break;
       case 'magic': // four-point sparkle
         ctx.shadowColor = pr.color; ctx.shadowBlur = 10;
@@ -714,27 +857,30 @@ TT.Game = (function () {
         ctx.fill();
         ctx.shadowBlur = 0;
         break;
-      default: // shooter: streamlined bullet capsule
+      default: // shooter: white-hot plasma bolt
+        ctx.shadowColor = pr.color; ctx.shadowBlur = 14;
         ctx.beginPath();
-        ctx.moveTo(7, 0);
-        ctx.quadraticCurveTo(3, -3, -6, -3);
-        ctx.lineTo(-6, 3);
-        ctx.quadraticCurveTo(3, 3, 7, 0);
+        ctx.moveTo(8, 0);
+        ctx.quadraticCurveTo(3, -3.2, -7, -2.6);
+        ctx.lineTo(-7, 2.6);
+        ctx.quadraticCurveTo(3, 3.2, 8, 0);
         ctx.closePath();
         ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.ellipse(1.5, 0, 4, 1.4, 0, 0, TAU); ctx.fill();
     }
     ctx.restore();
   }
 
   // Magic and attacker shells have their own look (js/effects.js); the rest
-  // get a faint trail plus their category's shape.
+  // get a glowing tail plus their category's shape.
   function drawProjectiles() {
     projectiles.forEach(pr => {
       if (TT.Effects.drawShell(ctx, pr, pr.y >= Terrain.heightAt(pr.x))) return;
-      ctx.strokeStyle = pr.color + '55';
-      ctx.beginPath();
-      pr.trail.forEach((pt, i) => i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y));
-      ctx.stroke();
+      const dirt = pr.weapon.category === 'dirt';
+      TT.Effects.tail(ctx, pr, pr.color, dirt ? 3 : 5, dirt ? 14 : 30);
+      if (!dirt) TT.Effects.tail(ctx, pr, '#ffffff', 1.6, 12);
       drawShellShape(pr);
     });
   }
@@ -743,10 +889,12 @@ TT.Game = (function () {
     popups.forEach(p => {
       ctx.globalAlpha = Math.max(0, p.alpha);
       ctx.fillStyle = p.color;
-      ctx.font = '700 18px Rubik, sans-serif';
+      ctx.font = '700 16px Orbitron, Rajdhani, sans-serif';
       ctx.textAlign = 'center';
+      ctx.shadowColor = p.color; ctx.shadowBlur = 10;
       ctx.fillText(p.text, p.x, p.y);
     });
+    ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
   }
@@ -760,7 +908,7 @@ TT.Game = (function () {
       const fade = Math.min(1, (f.until - now) / 600);
       ctx.save();
       ctx.globalAlpha = Math.max(0, fade);
-      ctx.shadowColor = '#ff7a1a'; ctx.shadowBlur = 12;
+      ctx.shadowColor = '#ff7a1a'; ctx.shadowBlur = 14;
       for (let i = -2; i <= 2; i++) {
         const h = 14 + Math.random() * 12 - Math.abs(i) * 3;
         ctx.fillStyle = i % 2 ? '#ff7a1a' : '#ffc23d';
@@ -775,22 +923,36 @@ TT.Game = (function () {
     });
   }
 
+  let lastDraw = 0;
   function draw() {
     if (!players) return;
+    lastDraw = performance.now();
     const { scale, dpr, ox, oy } = view;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, ox * dpr, oy * dpr);
-    drawSky();
     drawBackdrop();
     drawTerrain();
     players.forEach(drawTank);
+    drawReticle();
     drawFires();
     drawProjectiles();
     TT.Effects.draw(ctx);
     drawPopups();
   }
 
+  // Keeps the targeting overlay and unit lights moving between shots (about
+  // 30 fps). It does nothing while a shot or burst is already redrawing, when
+  // the tab is hidden, or when the player asked for reduced motion.
+  const calmMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function idleFrame(now) {
+    requestAnimationFrame(idleFrame);
+    if (calmMotion || phase !== 'battle' || document.hidden || !players || gameOver) return;
+    if (now - lastDraw > 30) draw();
+  }
+
   function spawnPopup(x, y, points) {
-    showPopup(x, y, `+${Math.round(points)}`, points > 0 ? '#c9ff8a' : '#ffffffaa');
+    showPopup(x, y, `+${Math.round(points)}`, points > 0 ? '#7dffc0' : '#ffffffaa');
   }
   function showPopup(x, y, text, color) {
     popups.push({ x, y, text, alpha: 1, color });
@@ -800,11 +962,14 @@ TT.Game = (function () {
   function playImpact(weapon, spots) {
     TT.Effects.impact(weapon, spots);
     animateEffects();
+    emit('impact', { weapon, spots, width: W });
   }
   const FIRE_MS = 4000;
   function startFire(spot) {
     fires.push(Object.assign({ until: performance.now() + FIRE_MS }, spot));
     animateEffects();
+    emit('burn', { onTank: spot.player !== undefined, ms: FIRE_MS, width: W,
+      x: spot.player !== undefined ? players[spot.player].x : spot.x });
   }
 
   // Keeps redrawing while popups float, fires burn or impact bursts play.
@@ -843,13 +1008,15 @@ TT.Game = (function () {
   // the same place. (The Beaver flies the same arc but passes through the
   // ground: see collide().)
   const SPEED_PER_POWER = 6.5;
-  // Scoring zones, measured along x from the centre of the opponent's tank
-  // (the drawn hull is 30 px wide). Points follow what you SEE: a blast that
-  // lands on the tank or visibly touches it scores, one that doesn't is +0.
+  // Scoring zones, measured as the real distance from the middle of the blast
+  // to the spot the opponent's tank stands on (the drawn hull is 30 px wide).
+  // Points follow what you SEE: the white ring every blast draws is its true
+  // edge. See shotShare() for the zones.
   const HULL_HALF = 15;       // half the drawn hull width
   const DEAD_CENTRE = 5;      // this close to the middle: full points
   const EDGE_SHARE = 0.8;     // landing right at the hull's edge: 80%
   const GRAZE_SHARE = 0.3;    // blast only just reaching the hull: 30%
+  const NEAR_MISS = TT.NEAR_MISS_PX; // px past the blast's reach that still score a little
   const MAX_STEPS = 3000;     // safety net: a shell can't fly forever
 
   function makeShell(shooter, weapon, angleDeg, power) {
@@ -896,15 +1063,20 @@ TT.Game = (function () {
     stopDriving();
     inventory[by].splice(inventory[by].indexOf(weapon.id), 1); // each weapon fires once
     lastSettings[by] = { angle: angleDeg, power };
-    projectiles = [makeShell(players[by], weapon, angleDeg, power)];
+    const shell = makeShell(players[by], weapon, angleDeg, power);
+    projectiles = [shell];
+    const quiet = instant || document.hidden;
+    emit('fire', { by, weapon, x: shell.x, y: shell.y, width: W, quiet });
 
     // Replays, and hidden tabs (where animation is paused), resolve the
     // whole flight at once. Same fixed steps = same result.
-    if (instant || document.hidden) {
+    if (quiet) {
       while (!stepShot(true));
       draw();
       return;
     }
+    TT.Effects.muzzle(shell.x, shell.y, Math.atan2(shell.vy, shell.vx), shell.color);
+    animateEffects();
     refreshControls();
     startFlight();
   }
@@ -969,8 +1141,18 @@ TT.Game = (function () {
     Object.assign(p, path[path.length - 1]);
     if (!instant) {
       // hidden tabs pause animation, so there the tank just arrives
-      if (path.length > 1 && !document.hidden) { p.anim = { path, start: performance.now() }; animateEffects(); }
+      if (path.length > 1 && !document.hidden) {
+        const anim = { path, start: performance.now() };
+        p.anim = anim;
+        animateEffects();
+        // Backup: if the browser stops drawing frames (window covered), the roll
+        // still ends on time, so the controls never stay locked.
+        setTimeout(() => {
+          if (p.anim === anim) { p.anim = null; refreshControls(); draw(); }
+        }, (path.length - 1) / DRIVE_SPEED * 1000 + 300);
+      }
       if (blocked) showPopup(p.x, p.y - 30, path.length > 1 ? blocked : `stuck: ${blocked}`, '#ffffffaa');
+      emit('drive', { by, moved: path.length - 1, blocked, x: p.x, width: W });
     }
     refreshControls();
     draw();
@@ -1005,9 +1187,14 @@ TT.Game = (function () {
     const spots = teleportSpots(by);
     stopDriving();
     teleportUsed[by] = true;
+    const from = { x: p.x, y: p.y };
     p.x = spots[Math.floor(Det.rng(seed)() * spots.length)];
     placeOnGround(p);
-    if (!instant) showPopup(p.x, p.y - 30, '✨', '#c9b8ff');
+    if (!instant) {
+      TT.Effects.warp(from.x, from.y - 9, p.x, p.y - 9);
+      showPopup(p.x, p.y - 34, 'warp', '#d9c8ff');
+      emit('teleport', { by, x: p.x, width: W });
+    }
     refreshControls();
     draw();
   }
@@ -1040,12 +1227,15 @@ TT.Game = (function () {
       f.steps++;
       if (stepShot(false)) { endFlight(f); return; }
     }
+    const pr = projectiles[0];
+    if (pr) emit('flight', { x: pr.x, y: pr.y, vx: pr.vx, vy: pr.vy, width: W, height: H });
     draw();
   }
 
   function endFlight(f) {
     clearInterval(f.timer);
     flight = null;
+    emit('land');
     draw();
     if (onIdle) onIdle(); // online: process moves that arrived meanwhile
   }
@@ -1060,7 +1250,7 @@ TT.Game = (function () {
 
   // Game reset mid-flight: drop the shot without resolving it.
   function cancelFlight() {
-    if (flight) clearInterval(flight.timer);
+    if (flight) { clearInterval(flight.timer); emit('land'); }
     flight = null;
   }
 
@@ -1119,12 +1309,16 @@ TT.Game = (function () {
       // The Beaver leaves the ground untouched. It scores only on a direct hit.
       if (hit === 'tank') {
         if (!quiet) playImpact(pr.weapon, [{ x: pr.x, y: pr.y }]);
-        scoreShot(pr, hit, pr.x, pr.y, quiet);
+        scoreShot(pr, hit, 0, pr.x, pr.y, quiet);
       }
-      else if (!quiet) showPopup(Math.max(40, Math.min(W - 40, pr.x)), H - 20, 'missed', '#ffffffaa');
+      else {
+        if (!quiet) showPopup(Math.max(40, Math.min(W - 40, pr.x)), H - 20, 'missed', '#ffffffaa');
+        emit('miss', { by: current, weapon: pr.weapon, quiet: !!quiet });
+      }
     } else if (hit !== 'oob') resolveImpact(pr, hit, quiet);
+    else emit('miss', { by: current, weapon: pr.weapon, quiet: !!quiet });
     projectiles = [];
-    endOfVolley();
+    endOfVolley(quiet);
     return true;
   }
 
@@ -1134,62 +1328,91 @@ TT.Game = (function () {
     const fx = (w.effect || {}).type;
     const target = players[1 - current];
 
+    // Where each blast goes off: on the ground as it was when the shell landed.
+    // The distance to the tank is measured now, before the blast moves anything.
+    const blasts = blastXs(w, impactX).map(bx => ({ x: bx, y: Terrain.heightAt(bx) }));
+    const dist = blastDistance(blasts, target);
+
     // Tanks can't be destroyed: blasts only reshape the ground. Dirt piles on
     // top of a tank (burying it), and a tank falls if the ground under it goes.
-    blastXs(w, impactX).forEach(bx => (fx === 'mound' ? Terrain.mound : Terrain.crater)(bx, w.radius));
+    blasts.forEach(b => (fx === 'mound' ? Terrain.mound : Terrain.crater)(b.x, w.radius));
     players.forEach(settleTank);
-    if (!quiet) playImpact(w, blastXs(w, impactX).map(bx => ({ x: bx, y: Terrain.heightAt(bx) })));
+    // y = the new ground (where the burst plays), y0 = the blast's centre (its true edge is drawn around it)
+    if (!quiet) playImpact(w, blasts.map(b => ({ x: b.x, y: Terrain.heightAt(b.x), y0: b.y })));
 
     // Burner: the opponent's tank catches fire if the blast reaches it,
     // otherwise the ground where it landed burns for a moment.
     if (fx === 'burn' && !quiet) {
-      const reached = hit === 'tank' || Math.abs(target.x - impactX) <= w.radius + 13;
+      const reached = hit === 'tank' || dist <= HULL_HALF + w.radius;
       startFire(reached ? { player: 1 - current } : { x: impactX, y: Terrain.heightAt(impactX) });
     }
-    scoreShot(pr, hit, impactX, pr.y, quiet);
+    scoreShot(pr, hit, dist, impactX, pr.y, quiet);
   }
 
-  // Points for a shot that landed at x. `hit` is 'tank' when it touched the
-  // opponent's tank, which always earns the category's full points.
-  // Otherwise points depend on how close the nearest blast is to the tank:
-  //   on the hull (within HULL_HALF px)   100% at the centre -> 80% at the edge
-  //   blast still reaches the hull        80% -> 30% as it only just grazes it
-  //                                       (reach = HULL_HALF + blast radius)
-  //   blast doesn't reach the tank        0
-  // The Beaver leaves no blast, so it only scores on a direct hit; dirt
-  // movers never score. Rounded to the nearest 5.
-  function shotPoints(w, hit, x) {
+  // How far the nearest blast is from the opponent's tank, in px. This is the
+  // real straight-line distance (left-right AND up-down) from the middle of the
+  // blast to the spot the tank is standing on. So a blast at the foot of a
+  // cliff is far from a tank on top of it, and dirt piled over a buried tank
+  // really does shield it.
+  // Math.sqrt gives the same result in every browser (terrain.js relies on
+  // that too), so both online players get the same distance.
+  function blastDistance(blasts, tank) {
+    let nearest = Infinity;
+    for (const b of blasts) {
+      const dx = b.x - tank.x, dy = b.y - tank.y;
+      nearest = Math.min(nearest, Math.sqrt(dx * dx + dy * dy));
+    }
+    return nearest;
+  }
+
+  // Share of the category's points for a blast `dist` px from the tank:
+  //   on the hull (within HULL_HALF px)    100% at the middle -> 80% at its edge
+  //   blast reaches the hull               80% -> 30% as it only just grazes it
+  //                                        (reach = HULL_HALF + blast radius)
+  //   near miss (up to NEAR_MISS px more)  30% -> 0, fading with distance
+  //   further away                         0
+  // There is no sudden drop anywhere: the closer the blast, the more it scores.
+  function shotShare(dist, radius) {
+    const reach = HULL_HALF + radius;
+    if (dist <= DEAD_CENTRE) return 1;
+    if (dist <= HULL_HALF) return 1 - (1 - EDGE_SHARE) * (dist - DEAD_CENTRE) / (HULL_HALF - DEAD_CENTRE);
+    if (dist <= reach) return EDGE_SHARE - (EDGE_SHARE - GRAZE_SHARE) * (dist - HULL_HALF) / radius;
+    if (dist <= reach + NEAR_MISS) return GRAZE_SHARE * (1 - (dist - reach) / NEAR_MISS);
+    return 0;
+  }
+
+  // Points for a shot whose nearest blast went off `dist` px from the tank.
+  // `hit` is 'tank' when the shell itself touched the opponent's tank, which
+  // always earns the category's full points. The Beaver leaves no blast, so it
+  // only scores on a direct hit; dirt movers never score. Rounded to the nearest 5.
+  function shotPoints(w, hit, dist) {
     const max = TT.CATEGORY_MAX_POINTS[w.category] || 0;
     if (!max) return 0;
     if (hit === 'tank') return max;
     if ((w.effect || {}).type === 'tunnel') return 0;
-    const targetX = players[1 - current].x;
-    const dist = Math.min(...blastXs(w, x).map(bx => Math.abs(targetX - bx)));
-    const reach = HULL_HALF + w.radius;
-    let share;
-    if (dist <= DEAD_CENTRE) share = 1;
-    else if (dist <= HULL_HALF) share = 1 - (1 - EDGE_SHARE) * (dist - DEAD_CENTRE) / (HULL_HALF - DEAD_CENTRE);
-    else if (dist <= reach) share = EDGE_SHARE - (EDGE_SHARE - GRAZE_SHARE) * (dist - HULL_HALF) / w.radius;
-    else share = 0;
-    return Math.round(share * max / 5) * 5;
+    return Math.round(shotShare(dist, w.radius) * max / 5) * 5;
   }
 
-  function scoreShot(pr, hit, x, y, quiet) {
-    const points = shotPoints(pr.weapon, hit, x);
+  function scoreShot(pr, hit, dist, x, y, quiet) {
+    const points = shotPoints(pr.weapon, hit, dist);
     players[current].score += Math.round(points);
     if (!quiet) spawnPopup(x, y, points);
+    emit('score', { by: current, points, max: TT.CATEGORY_MAX_POINTS[pr.weapon.category] || 0,
+      direct: hit === 'tank', dist: hit === 'tank' ? 0 : Math.round(dist), weapon: pr.weapon, x, width: W, quiet: !!quiet });
   }
 
   // The match always lasts until both players have fired all their weapons.
-  function endOfVolley() {
-    if (!inventory[0].length && !inventory[1].length) { updateHUD(); endGame(); return; }
+  function endOfVolley(quiet) {
+    if (!inventory[0].length && !inventory[1].length) { updateHUD(); endGame(quiet); return; }
+    const before = current;
     if (inventory[1 - current].length) current = 1 - current;
     el.angle.value = lastSettings[current].angle;
     el.power.value = lastSettings[current].power;
     updateHUD();
+    emit('turn', { current, changed: current !== before, mine: isMe(current), solo: isSolo(), quiet: !!quiet });
   }
 
-  function endGame() {
+  function endGame(quiet) {
     gameOver = true;
     const [a, b] = [players[0].score, players[1].score];
     const winner = a > b ? 0 : b > a ? 1 : -1;
@@ -1197,6 +1420,8 @@ TT.Game = (function () {
     el.bannerText.textContent = `${result} ${a} – ${b}`;
     el.banner.style.display = 'flex';
     refreshControls();
+    emit('gameover', { winner, scores: [a, b], solo: isSolo(),
+      won: winner !== -1 && isSolo() && isMe(winner), quiet: !!quiet });
   }
 
   function onKey(e) {
@@ -1209,8 +1434,8 @@ TT.Game = (function () {
     else if (e.code === 'KeyT') teleport();
     else if (e.code === 'KeyA') drive(-1);
     else if (e.code === 'KeyD') drive(1);
-    else if (e.code === 'ArrowUp') { el.power.value = Math.min(100, Number(el.power.value) + 2); el.powerVal.textContent = el.power.value; aimChanged(); }
-    else if (e.code === 'ArrowDown') { el.power.value = Math.max(10, Number(el.power.value) - 2); el.powerVal.textContent = el.power.value; aimChanged(); }
+    else if (e.code === 'ArrowUp') { e.preventDefault(); el.power.value = Math.min(100, Number(el.power.value) + 2); el.powerVal.textContent = el.power.value; draw(); aimChanged(); }
+    else if (e.code === 'ArrowDown') { e.preventDefault(); el.power.value = Math.max(10, Number(el.power.value) - 2); el.powerVal.textContent = el.power.value; draw(); aimChanged(); }
     else if (e.code === 'ArrowLeft') { el.angle.value = Math.max(0, Number(el.angle.value) - 2); el.angleVal.textContent = el.angle.value + '°'; draw(); aimChanged(); }
     else if (e.code === 'ArrowRight') { el.angle.value = Math.min(180, Number(el.angle.value) + 2); el.angleVal.textContent = el.angle.value + '°'; draw(); aimChanged(); }
   }
@@ -1219,6 +1444,7 @@ TT.Game = (function () {
   // While it's your turn, tell the opponent how you're aiming so their screen
   // shows your barrel, power and weapon moving. Preview only: not a move.
   function aimChanged() {
+    emit('aim', { remote: false });
     if (!isOnline() || phase !== 'battle' || gameOver || isBusy() || !canControl(current)) return;
     TT.Online.sendAim({ angle: Number(el.angle.value), power: Number(el.power.value), weapon: el.weaponSelect.value });
   }
@@ -1233,10 +1459,11 @@ TT.Game = (function () {
     el.angleVal.textContent = aim.angle + '°';
     el.powerVal.textContent = aim.power;
     draw();
+    emit('aim', { remote: true });
   }
 
   return {
-    init, checkMove, applyMove, isBusy, resetAll, refreshUI, showMenu, showRemoteAim,
+    init, checkMove, applyMove, isBusy, resetAll, refreshUI, showMenu, showRemoteAim, state,
     redraw: draw,
     setOnIdle: fn => { onIdle = fn; }
   };

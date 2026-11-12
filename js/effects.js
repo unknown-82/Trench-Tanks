@@ -59,8 +59,10 @@ TT.Effects = (function () {
       world: (ctx, pr) => puffs(ctx, pr, '#777'),
       local(ctx, pr, angle) {
         ctx.rotate(-angle + pr.steps * 0.08);
-        circle(ctx, 0, 0, 7.5, '#1d1d22');
-        circle(ctx, -2.5, -2.5, 2.2, '#5a5a66');
+        circle(ctx, 0, 0, 7.5, '#262a38');
+        ctx.strokeStyle = '#ff7a1f'; ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, TAU); ctx.stroke();
+        circle(ctx, -2.5, -2.5, 2.2, '#7d859c');
         ctx.fillStyle = '#6b6b75'; ctx.fillRect(-2, -10, 4, 3);
         ctx.shadowColor = '#ffb13d'; ctx.shadowBlur = 8;
         star(ctx, 0, -12, rnd(2.5, 4.5), '#ffd36b');
@@ -81,8 +83,10 @@ TT.Effects = (function () {
     heavycannon: { // solid iron cannonball, smoke trail
       world: (ctx, pr) => puffs(ctx, pr, '#999', 4),
       local(ctx) {
-        circle(ctx, 0, 0, 6.5, '#34343c');
-        circle(ctx, -2, -2, 2, '#8a8a96');
+        circle(ctx, 0, 0, 6.5, '#3a4055');
+        ctx.strokeStyle = '#ff7a1f'; ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, TAU); ctx.stroke();
+        circle(ctx, -2, -2, 2, '#aab2c8');
       }
     },
     warhead: { // rocket with a flickering exhaust flame
@@ -218,12 +222,13 @@ TT.Effects = (function () {
     }
   }
 
-  // Each weapon's impact. `spots` = [{x, y}], one per blast.
+  // Each weapon's impact. `spots` = [{x, y}], one per blast. Hard-edged rings
+  // never grow past the weapon's real blast radius, so nothing looks like a hit that isn't.
   const IMPACTS = {
     bigbertha(spots) { // huge fireball, black smoke
       const { x, y } = spots[0];
-      flash(x, y - 10, 70);
-      fireball(x, y - 12, 62, 750);
+      flash(x, y - 10, 64);
+      fireball(x, y - 12, 54, 750);
       sparks(x, y - 5, 24, ['#ffb13d', '#ff7a1a', '#ffe08a'], 260, { up: true });
       smoke(x, y - 20, 10, 30, 45, { color: '#2e2e34', size: 16 });
     },
@@ -242,9 +247,9 @@ TT.Effects = (function () {
     },
     warhead(spots) { // the biggest blast: flash, shockwave, fireball, rising smoke column
       const { x, y } = spots[0];
-      flash(x, y - 10, 110, '#ffffff', 260);
-      ring(x, y - 4, 150, '#ffe08a', 650, { flat: 0.35, width: 6 });
-      fireball(x, y - 15, 70, 900);
+      flash(x, y - 10, 84, '#ffffff', 260);
+      ring(x, y - 4, 58, '#ffe08a', 650, { flat: 0.35, width: 6 });
+      fireball(x, y - 15, 58, 900);
       fireball(x, y - 55, 38, 900, 250);
       sparks(x, y - 5, 30, ['#ffb13d', '#ff7a1a', '#ffe08a'], 340, { up: true });
       smoke(x, y - 40, 14, 18, 60, { color: '#3a3a42', size: 18, height: 50, delay: 200 });
@@ -252,10 +257,10 @@ TT.Effects = (function () {
     siegeshell(spots) { // wide, low splash: twin shockwaves and dust along the ground
       const { x, y } = spots[0];
       flash(x, y - 6, 50, '#ffd6c2', 200);
-      ring(x, y - 3, 170, '#ff8a6b', 700, { flat: 0.22, width: 5 });
-      ring(x, y - 3, 120, '#ffd36b', 600, { flat: 0.22, width: 4, delay: 140 });
+      ring(x, y - 3, 50, '#ff8a6b', 700, { flat: 0.22, width: 5 });
+      ring(x, y - 3, 34, '#ffd36b', 600, { flat: 0.22, width: 4, delay: 140 });
       fireball(x, y - 8, 40, 500);
-      smoke(x, y - 4, 12, 80, 20, { color: '#8a6b3d', size: 12, height: 4 });
+      smoke(x, y - 4, 12, 50, 20, { color: '#8a6b3d', size: 12, height: 4 });
       sparks(x, y - 4, 20, ['#ff7a1a', '#ffd36b'], 300, { up: true });
     },
     triplethreat(spots) { // three sparkle bursts, one per blast
@@ -275,17 +280,17 @@ TT.Effects = (function () {
     },
     echowisp(spots) { // a pulse, then its echo
       const { x, y } = spots[0];
-      flash(x, y - 10, 40, '#bfe2ff', 250);
-      ring(x, y - 10, 70, '#4aa8ff', 550, { width: 5 });
-      ring(x, y - 10, 70, '#bfe2ff', 550, { width: 5, delay: 330 });
+      flash(x, y - 10, 34, '#bfe2ff', 250);
+      ring(x, y - 10, 24, '#4aa8ff', 550, { width: 4 });
+      ring(x, y - 10, 24, '#bfe2ff', 550, { width: 4, delay: 330 });
       flash(x, y - 10, 30, '#bfe2ff', 250, 330);
       sparks(x, y - 10, 14, ['#4aa8ff', '#ffffff'], 140, { kind: 'twinkle', g: 40, size: 3, delay: 330 });
     },
     comet(spots) { // dazzling starburst and icy sparkles
       const { x, y } = spots[0];
-      flash(x, y - 10, 70, '#e6f7ff', 300);
-      add({ kind: 'star', x, y: y - 12, size: 46, color: '#ffffff', dur: 500 });
-      ring(x, y - 8, 80, '#8ad6ff', 600, { width: 4 });
+      flash(x, y - 10, 54, '#e6f7ff', 300);
+      add({ kind: 'star', x, y: y - 12, size: 36, color: '#ffffff', dur: 500 });
+      ring(x, y - 8, 36, '#8ad6ff', 600, { width: 4 });
       sparks(x, y - 8, 28, ['#ffffff', '#8ad6ff', '#bfe9ff'], 260, { kind: 'twinkle', g: 120, size: 4, dur: 1100 });
     },
     burner(spots) { // the blast is small; the fire is the point (drawn by the game)
@@ -300,9 +305,67 @@ TT.Effects = (function () {
     }
   };
 
+  // Weapons without a signature burst use their category's.
+  const CATEGORY_IMPACTS = {
+    shooter(spots, w) { // tight plasma burst
+      const { x, y } = spots[0], r = w.radius;
+      flash(x, y - 6, r * 1.6, '#e6fbff', 200);
+      ring(x, y - 4, r, '#3be8ff', 420, { flat: 0.4, width: 3 });
+      ring(x, y - 6, r * 0.6, '#ffffff', 300, { width: 2 });
+      sparks(x, y - 4, 16, ['#3be8ff', '#ffffff', '#9af3ff'], 260, { up: true, size: 2.6, dur: 700 });
+      smoke(x, y - 6, 4, r * 0.6, 26, { color: '#2a3350', size: 9 });
+    },
+    dirt(spots, w) { // regolith thrown up (mound) or blown out (dig)
+      const { x, y } = spots[0], r = w.radius, adds = (w.effect || {}).type === 'mound';
+      flash(x, y - 6, r * 1.2, adds ? '#ffe9c2' : '#dff6ff', 180);
+      ring(x, y - 3, r, '#d8b36a', 620, { flat: 0.22, width: 4 });
+      sparks(x, y - 4, 34, ['#8d7a5c', '#d8b36a', '#4a5068', '#b79b6b'], adds ? 260 : 420,
+        { up: true, kind: 'chunk', size: 5, g: 620, dur: 1300 });
+      smoke(x, y - 4, 14, r, 26, { color: '#6d6455', size: 14, height: 6 });
+    }
+  };
+  const EMBER = { shooter: '#3be8ff', attacker: '#ff7a1f', magic: '#b88cff' };
+
   function impact(weapon, spots) {
-    const fx = IMPACTS[weapon.id];
-    if (fx) fx(spots);
+    const fx = IMPACTS[weapon.id] || CATEGORY_IMPACTS[weapon.category];
+    if (fx) fx(spots, weapon);
+    const ember = EMBER[weapon.category];
+    if (!ember || !weapon.radius) return; // dirt movers and the Beaver have no scoring blast
+    spots.forEach(({ x, y, y0 }) => {
+      const cy = y0 === undefined ? y : y0; // the middle of the blast, where scoring measures from
+      // What you see is what scores: the white ring is the blast's true edge
+      // (if it touches the tank, that's a solid score); the faint outer ring is
+      // the near-miss limit (inside it still scores a little).
+      ring(x, cy, weapon.radius, '#ffffff', 700, { width: 2.4 });
+      ring(x, cy, weapon.radius + TT.NEAR_MISS_PX, ember, 800, { width: 1, a: 0.4 });
+      // the ground keeps glowing for a moment where each blast went off
+      add({ kind: 'ember', x, y: y - 2, size: Math.max(22, weapon.radius * 1.1), color: ember, dur: 1700 });
+    });
+  }
+
+  // Flash and sparks leaving the barrel when a shell is fired.
+  function muzzle(x, y, angle, color) {
+    flash(x, y, 30, '#ffffff', 150);
+    flash(x, y, 54, color, 260);
+    ring(x, y, 20, color, 260, { width: 2 });
+    for (let i = 0; i < 12; i++) {
+      const a = angle + rnd(-0.4, 0.4), sp = rnd(120, 420);
+      add({ kind: 'dot', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 200,
+        size: rnd(1.2, 2.6), color: pick([color, '#ffffff']), dur: rnd(180, 420) });
+    }
+  }
+
+  // Teleport: the unit folds away at (x0, y0) and unfolds at (x1, y1).
+  function warp(x0, y0, x1, y1) {
+    const violet = '#a97bff', pale = '#e2d6ff';
+    add({ kind: 'beam', x: x1, y: y1, x0, y0, size: 3, color: violet, dur: 420 });
+    ring(x0, y0, 34, violet, 420, { width: 3 });
+    sparks(x0, y0, 14, [violet, pale], 150, { kind: 'twinkle', g: -40, size: 3.5, dur: 700 });
+    flash(x1, y1, 60, pale, 320, 120);
+    ring(x1, y1, 46, pale, 520, { width: 4, delay: 120 });
+    ring(x1, y1, 30, violet, 620, { width: 2, delay: 220 });
+    add({ kind: 'star', x: x1, y: y1, size: 30, color: '#ffffff', dur: 450, delay: 120 });
+    sparks(x1, y1, 18, [violet, pale, '#ffffff'], 220, { kind: 'twinkle', g: 60, size: 4, delay: 120 });
   }
 
   function drawPart(ctx, p, age) {
@@ -310,7 +373,23 @@ TT.Effects = (function () {
     const x = p.x + p.vx * t, y = p.y + p.vy * t + 0.5 * p.g * t * t;
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
+    // light adds up where it overlaps; smoke and debris cover what's behind them
+    ctx.globalCompositeOperation = p.kind === 'smoke' || p.kind === 'chunk' ? 'source-over' : 'lighter';
     switch (p.kind) {
+      case 'ember': { // slow afterglow on the ground
+        const g = ctx.createRadialGradient(x, y, 0, x, y, p.size);
+        g.addColorStop(0, p.color); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = 0.5 * (1 - k) * (1 - k);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.ellipse(x, y, p.size, p.size * 0.45, 0, 0, TAU); ctx.fill();
+        break;
+      }
+      case 'beam': // a line from (x0, y0) to (x, y) that thins out
+        ctx.globalAlpha = 1 - k;
+        ctx.strokeStyle = p.color; ctx.lineWidth = Math.max(0.4, p.size * (1 - k)); ctx.lineCap = 'round';
+        ctx.shadowColor = p.color; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.moveTo(p.x0, p.y0); ctx.lineTo(p.x, p.y); ctx.stroke();
+        break;
       case 'dot':
         ctx.globalAlpha = 1 - k;
         circle(ctx, x, y, p.size * (1 - k * 0.5), p.color);
@@ -344,7 +423,7 @@ TT.Effects = (function () {
         break;
       }
       case 'ring':
-        ctx.globalAlpha = 1 - k;
+        ctx.globalAlpha = (1 - k) * (p.a || 1);
         ctx.strokeStyle = p.color; ctx.lineWidth = Math.max(0.5, p.width * (1 - k));
         ctx.beginPath(); ctx.ellipse(x, y, p.size * easeOut(k), p.size * easeOut(k) * p.flat, 0, 0, TAU); ctx.stroke();
         break;
@@ -386,5 +465,5 @@ TT.Effects = (function () {
   function active() { return parts.length > 0; }
   function clear() { parts = []; }
 
-  return { drawShell, impact, draw, active, clear };
+  return { drawShell, impact, muzzle, warp, tail, draw, active, clear };
 })();
