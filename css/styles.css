@@ -106,7 +106,7 @@ kbd{
 
 /* ---- 4. Boot + shell ---- */
 #holo{position:fixed; inset:0; width:100%; height:100%; z-index:0; display:block; transition:opacity var(--t-slow), filter var(--t-slow);}
-body[data-screen=draft] #holo{opacity:.3; filter:blur(4px) saturate(.8);}
+body[data-screen=draft] #holo{opacity:.14; filter:blur(8px) saturate(.5);}
 body.battle #holo{display:none;}
 body.battle .atmo{opacity:.35;}
 .atmo{ /* vignette + faint scanlines over everything */
@@ -141,17 +141,24 @@ body.booted #boot{opacity:0; visibility:hidden; pointer-events:none;}
 #bootStart{animation:rise .6s var(--ease) .35s both;}
 
 .fab{position:fixed; top:calc(14px + var(--safe-t)); right:14px; z-index:30;}
-.audioBtn.fab{
+.audioBtn.fab,.menuBtn.fab{
   width:40px; height:40px; border-radius:50%; border:1px solid var(--line-strong);
   background:rgba(10,14,28,.7); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
   display:grid; place-items:center; transition:border-color var(--t-fast), box-shadow var(--t-fast);
 }
 .audioBtn.fab:hover{border-color:var(--cyan); box-shadow:0 0 16px rgba(59,232,255,.4);}
-.audioBtn svg{width:20px; height:20px; fill:none; stroke:var(--silver); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+.audioBtn svg,.menuBtn.fab svg{width:20px; height:20px; fill:none; stroke:var(--silver); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
 .audioBtn .cross{display:none; stroke:var(--danger);}
 body[data-audio=off] .audioBtn .wave{display:none;}
 body[data-audio=off] .audioBtn .cross{display:inline;}
-body.battle .fab, body:not(.booted) .fab{display:none;}
+body.battle .audioBtn.fab, body:not(.booted) .audioBtn.fab{display:none;}
+
+/* Exit-to-menu fab: lives in the conventional top-right "exit" corner.
+   Only shown in the armoury (draft) screen; battle keeps its own back
+   button in the console so it never sits over the HUD score plates. */
+.menuBtn.fab:hover{border-color:var(--orange); box-shadow:0 0 16px rgba(255,122,31,.4);}
+body:not([data-screen=draft]) .menuBtn.fab, body:not(.booted) .menuBtn.fab{display:none;}
+body[data-screen=draft] .audioBtn.fab{right:calc(14px + 48px);}
 
 #app{position:relative; z-index:1; width:min(1280px,100% - 32px); margin:0 auto;}
 
@@ -241,7 +248,7 @@ body.battle .fab, body:not(.booted) .fab{display:none;}
 
 /* ---- 6. Armoury (draft) ---- */
 #selectScreen{padding:var(--s4) 0 var(--s5); display:flex; flex-direction:column; gap:var(--s3); min-height:100vh; min-height:100dvh; animation:rise .5s var(--ease) both;}
-.armoryHead{display:flex; align-items:flex-end; justify-content:space-between; gap:var(--s3); flex-wrap:wrap; padding-right:52px;}
+.armoryHead{display:flex; align-items:flex-end; justify-content:space-between; gap:var(--s3); flex-wrap:wrap; padding-right:112px;}
 .armoryHead h2{font-family:var(--f-display); font-weight:700; font-size:clamp(1rem,2.6vw,1.5rem); letter-spacing:.08em; text-transform:uppercase; margin-top:6px;}
 .draftBtns{display:flex; gap:8px; flex-wrap:wrap;}
 
@@ -287,8 +294,8 @@ body[data-pick="0"] .loadout-p1 .plateTag, body[data-pick="1"] .loadout-p2 .plat
 .weaponCard{
   --wcolor:#fff; position:relative; display:grid; grid-template-columns:38px 1fr auto; grid-template-rows:auto auto; gap:0 10px;
   align-items:center; text-align:left; padding:8px 10px 8px 12px; overflow:hidden;
-  background:linear-gradient(90deg,color-mix(in srgb,var(--wcolor) 9%,rgba(10,14,26,.86)),rgba(10,14,26,.86) 60%);
-  border:1px solid rgba(127,138,163,.22); color:var(--white);
+  background:linear-gradient(90deg,color-mix(in srgb,var(--wcolor) 9%,rgba(6,8,18,.94)),rgba(6,8,18,.94) 60%);
+  border:1px solid rgba(190,200,220,.38); color:var(--white);
   clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px));
   transition:transform var(--t-fast) var(--ease), border-color var(--t-fast), background var(--t-fast), opacity var(--t-med);
 }
@@ -296,7 +303,7 @@ body[data-pick="0"] .loadout-p1 .plateTag, body[data-pick="1"] .loadout-p2 .plat
 .weaponCard .wicon{grid-row:1 / 3; color:var(--wcolor); display:grid; place-items:center; filter:drop-shadow(0 0 6px color-mix(in srgb,var(--wcolor) 70%,transparent));}
 .weaponCard .glyph{width:34px; height:34px;}
 .weaponCard strong{grid-column:2; font-family:var(--f-display); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-.weaponCard .wdesc{grid-column:2; font-size:.76rem; color:var(--silver); opacity:.72; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.weaponCard .wdesc{grid-column:2; font-size:.76rem; color:var(--silver); opacity:.88; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .weaponCard .wrad{grid-column:3; grid-row:1 / 3; font-family:var(--f-display); font-size:.56rem; color:var(--steel); letter-spacing:.08em; text-align:right;}
 .weaponCard .wrad b{display:block; font-size:.82rem; color:var(--wcolor);}
 .weaponCard:not(:disabled):hover,.weaponCard:not(:disabled):focus-visible{transform:translateX(5px); border-color:var(--wcolor); background:linear-gradient(90deg,color-mix(in srgb,var(--wcolor) 24%,rgba(10,14,26,.86)),rgba(10,14,26,.86) 80%);}
@@ -428,6 +435,7 @@ body:not([data-myturn]) .console::before{opacity:.25;}
 .wpnText{display:flex; flex-direction:column; min-width:0;}
 .wpnText strong{font-family:var(--f-display); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .wpnText span{font-size:.72rem; color:var(--silver); opacity:.8; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.wpnCatTag{color:var(--wcolor); opacity:1;}
 .wpnCount{font-family:var(--f-display); font-weight:900; font-size:1.05rem; color:var(--wcolor);}
 .wpnBay :disabled{opacity:.45;}
 .wpnTray{
@@ -436,11 +444,12 @@ body:not([data-myturn]) .console::before{opacity:.25;}
   background:rgba(6,9,18,.96); border:1px solid var(--line-strong); box-shadow:0 -10px 40px rgba(0,0,0,.6), 0 0 24px rgba(59,232,255,.15);
   animation:trayIn .22s var(--ease);
 }
-.wpnChip{--wcolor:var(--cyan); display:grid; grid-template-columns:26px 1fr auto; gap:8px; align-items:center; text-align:left; padding:5px 8px;
+.wpnChip{--wcolor:var(--cyan); display:grid; grid-template-columns:26px 1fr auto; grid-template-rows:auto auto; gap:1px 8px; align-items:center; text-align:left; padding:5px 8px;
   background:rgba(14,19,34,.8); border:1px solid rgba(127,138,163,.25); color:var(--white); transition:all var(--t-fast);}
-.wpnChip .glyph{width:24px; height:24px; color:var(--wcolor);}
-.wpnChip b{font-family:var(--f-display); font-size:.58rem; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-.wpnChip i{font-style:normal; font-family:var(--f-display); font-size:.54rem; color:var(--wcolor);}
+.wpnChip .glyph{grid-row:1 / 3; width:24px; height:24px; color:var(--wcolor);}
+.wpnChip b{grid-column:2; font-family:var(--f-display); font-size:.58rem; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.wpnChip small{grid-column:2; font-size:.54rem; letter-spacing:.1em; text-transform:uppercase; color:var(--wcolor); opacity:.9;}
+.wpnChip i{grid-row:1 / 3; font-style:normal; font-family:var(--f-display); font-size:.54rem; color:var(--wcolor);}
 .wpnChip:hover,.wpnChip[aria-selected=true]{border-color:var(--wcolor); background:color-mix(in srgb,var(--wcolor) 16%,rgba(14,19,34,.9));}
 
 .consCore{display:flex; align-items:center; gap:14px;}
@@ -526,7 +535,7 @@ body:not([data-myturn]) .console::before{opacity:.25;}
 .resultBtns{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:6px; animation:rise .6s var(--ease) .8s both;}
 
 /* ---- 9. Uplink + comms ---- */
-.uplink{margin-top:var(--s3); padding:8px 14px; background:rgba(8,11,22,.86); border:1px solid var(--line); border-left:3px solid var(--violet); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); margin-right:52px;}
+.uplink{margin-top:var(--s3); padding:8px 14px; background:rgba(8,11,22,.86); border:1px solid var(--line); border-left:3px solid var(--violet); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); margin-right:112px;}
 .onlineRow{display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap;}
 .uplinkTag{font-family:var(--f-display); font-size:.54rem; letter-spacing:.3em; text-transform:uppercase; color:var(--violet);}
 .netStatus{font-size:.88rem; letter-spacing:.04em; display:inline-flex; align-items:center; gap:8px; flex:1 1 200px; min-width:0;}
@@ -647,7 +656,7 @@ body.battle .chatLog{height:74px;}
   .versus{grid-template-columns:1fr;}
   .inspector{grid-column:auto;}
   .slots{grid-template-columns:repeat(10,1fr);}
-  .armoryHead,.uplink{padding-right:0; margin-right:52px;}
+  .armoryHead,.uplink{padding-right:0; margin-right:102px;}
   .hero .kicker{display:block; padding-right:52px;}
   .resultBoard{grid-template-columns:1fr 1fr;}
   .resultVs{display:none;}

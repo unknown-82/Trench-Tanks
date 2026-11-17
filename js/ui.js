@@ -283,7 +283,7 @@ TT.UI = (function () {
     const cat = Art.category(w.category), pts = Art.maxPoints(w);
     el.wpnCard.style.setProperty('--wcolor', cat.color);
     $('wpnName').textContent = w.name;
-    $('wpnMeta').textContent = `Blast ${w.radius} · ${pts ? pts + ' pts' : 'no score'} · ${Art.payload(w)}`;
+    $('wpnMeta').innerHTML = `<b class="wpnCatTag">${cat.name}</b> · Blast ${w.radius} · ${pts ? pts + ' pts' : 'no score'} · ${Art.payload(w)}`;
     el.wpnCard.title = `${cat.name}: ${w.desc}`;
     if (shownWeapon !== id) {
       shownWeapon = id;
@@ -317,8 +317,9 @@ TT.UI = (function () {
       chip.setAttribute('role', 'option');
       chip.setAttribute('aria-selected', id === el.weaponSelect.value);
       chip.style.setProperty('--wcolor', cat.color);
-      chip.innerHTML = `${Art.glyph(id)}<b></b><i></i>`;
+      chip.innerHTML = `${Art.glyph(id)}<b></b><small></small><i></i>`;
       chip.querySelector('b').textContent = w.name;
+      chip.querySelector('small').textContent = cat.name;
       chip.querySelector('i').textContent = pts ? pts : '—';
       chip.title = `${cat.name}: ${w.desc}`;
       chip.addEventListener('click', () => { chooseWeapon(id); closeTray(); });
