@@ -1,0 +1,66 @@
+:root{
+  --bg-0:#060810; --bg-1:#0b0e1a; --ink:#eef2fb; --silver:#9aa6c4; --steel:#5b6686;
+  --cyan:#3be8ff; --violet:#a97bff; --orange:#ff7a1f;
+  --line:#ffffff1a; --line-strong:#ffffff30;
+  --f-display:'Orbitron',sans-serif; --f-body:'Rajdhani',sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0; min-height:100%;}
+body{
+  background:
+    radial-gradient(ellipse at 50% -10%,#1c2440,transparent 60%),
+    var(--bg-0);
+  color:var(--ink); font-family:var(--f-body); font-size:16px;
+  display:flex; flex-direction:column; align-items:center;
+  padding:clamp(20px,5vh,56px) 20px 40px;
+}
+a{color:inherit; text-decoration:none;}
+
+.hero{max-width:720px; text-align:center; margin-bottom:clamp(28px,5vh,48px);}
+.kicker{
+  font-family:var(--f-display); font-size:.62rem; letter-spacing:.3em; text-transform:uppercase;
+  color:var(--cyan); margin-bottom:10px;
+}
+.logo{
+  font-family:var(--f-display); font-weight:900; text-transform:uppercase;
+  font-size:clamp(1.9rem,6vw,3.2rem); letter-spacing:.04em; margin:0 0 14px;
+}
+.logo span{color:var(--orange);}
+.heroSub{color:var(--silver); font-size:1.05rem; line-height:1.5; margin:0;}
+
+.gameGrid{
+  display:grid; grid-template-columns:repeat(2,minmax(260px,1fr)); gap:18px;
+  width:min(920px,100%);
+}
+@media (max-width:620px){ .gameGrid{grid-template-columns:1fr;} }
+
+.cut{
+  --c:14px; position:relative; isolation:isolate;
+  clip-path:polygon(var(--c) 0,100% 0,100% calc(100% - var(--c)),calc(100% - var(--c)) 100%,0 100%,0 var(--c));
+}
+.cut::before{
+  content:''; position:absolute; inset:1px; z-index:-1; clip-path:inherit;
+  background:linear-gradient(180deg,#171f38,#0b0e1a);
+}
+
+.gameCard{
+  display:flex; flex-direction:column; gap:10px; padding:22px 22px 20px;
+  border:1px solid var(--line-strong); background:linear-gradient(135deg,rgba(59,232,255,.08),transparent 60%);
+  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.gameCard:hover{ transform:translateY(-3px); border-color:var(--cyan); box-shadow:0 10px 30px rgba(59,232,255,.15); }
+.gameIcon{
+  width:44px; height:44px; color:var(--cyan); display:grid; place-items:center;
+}
+.gameIcon svg{width:100%; height:100%; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.gameCard strong{
+  font-family:var(--f-display); font-size:1.05rem; letter-spacing:.06em; text-transform:uppercase;
+}
+.gameDesc{color:var(--silver); font-size:.92rem; line-height:1.4;}
+.gameTags{display:flex; gap:8px; margin-top:4px;}
+.gameTags i{
+  font-style:normal; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--steel); border:1px solid var(--line); padding:3px 8px; border-radius:2px;
+}
+
+.heroFoot{max-width:620px; text-align:center; color:var(--steel); font-size:.8rem; margin-top:clamp(28px,6vh,52px);}

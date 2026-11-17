@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#03040a">
+<title>Fish Catch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app">
+
+  <a class="backHub" href="../index.html">&larr; Arcade</a>
+
+  <!-- ONLINE BAR -->
+  <section id="onlineBar" class="card" hidden>
+    <div class="onlineRow">
+      <span id="netStatus" class="netStatus" data-state="local" role="status" aria-live="polite">Local game &middot; both players on this device</span>
+      <div class="onlineBtns">
+        <button id="reconnectBtn" class="btn btn-ghost btn-sm" type="button" hidden>&#8635; Reconnect</button>
+        <button id="leaveBtn" class="btn btn-ghost btn-sm" type="button" hidden>Leave</button>
+      </div>
+    </div>
+    <div id="roomBox" class="roomBox" hidden>
+      <input id="roomLink" type="text" readonly aria-label="Room link to send to your opponent">
+      <button id="copyBtn" class="btn btn-ghost btn-sm" type="button">Copy link</button>
+    </div>
+  </section>
+
+  <!-- SCREEN 0: mode select -->
+  <section id="modeScreen">
+    <header class="hero">
+      <h1 class="logo">Fish <span>Catch</span></h1>
+      <p class="heroSub">A pond full of fish, split down the middle. Tap the ones swimming on your side before they slip away &mdash; bigger fish are worth more.</p>
+    </header>
+    <div class="modeGrid">
+      <button id="modeLocal" class="modeCard cut" type="button">
+        <strong>Local</strong>
+        <span class="modeDesc">Player 1 fishes the left side, Player 2 the right &mdash; same screen, same pond.</span>
+      </button>
+      <div class="modeCard cut botCard">
+        <strong>Vs Bot</strong>
+        <span class="modeDesc">Choose how fast its reflexes are.</span>
+        <div class="levelBtns">
+          <button class="levelBtn" type="button" data-bot="easy">Easy</button>
+          <button class="levelBtn" type="button" data-bot="medium">Medium</button>
+          <button class="levelBtn" type="button" data-bot="hard">Hard</button>
+        </div>
+      </div>
+      <div class="modeCard cut onlineCard">
+        <strong>Online</strong>
+        <span class="modeDesc">Open a room and send the link.</span>
+        <div class="onlineActions">
+          <button id="modeOnline" class="btn btn-cyan" type="button">Create room</button>
+          <form id="joinForm" class="joinForm">
+            <input id="joinInput" type="text" placeholder="Paste a room link to join" autocomplete="off" spellcheck="false" aria-label="Room link">
+            <button id="joinBtn" class="btn btn-ghost btn-sm" type="submit">Join</button>
+          </form>
+          <span id="joinNote" class="joinNote" role="status"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCREEN 1: play -->
+  <section id="playScreen" hidden>
+    <header class="playHead">
+      <div class="seat seat-p1" id="seatP1"><span class="seatTag">Player 1</span><b class="seatScore" id="scoreP1">0</b></div>
+      <div class="roundInfo"><span id="timer">0:45</span><p id="prompt">&mdash;</p></div>
+      <div class="seat seat-p2" id="seatP2"><span class="seatTag">Player 2</span><b class="seatScore" id="scoreP2">0</b></div>
+    </header>
+
+    <div class="pond">
+      <div class="zone zone-p1" id="zoneP1"></div>
+      <div class="zoneDivider" aria-hidden="true"></div>
+      <div class="zone zone-p2" id="zoneP2"></div>
+    </div>
+
+    <footer class="playFoot">
+      <button id="startBtn" class="btn btn-primary" type="button">Start round</button>
+      <button class="btn btn-ghost btn-xs menuBtn" type="button">&larr; Menu</button>
+    </footer>
+  </section>
+
+  <!-- SCREEN 2: done -->
+  <section id="doneScreen" hidden>
+    <div class="debrief cut">
+      <span class="kicker">Catch complete</span>
+      <div id="resultTitle" class="resultTitle">Player 1 wins</div>
+      <div class="resultBoard">
+        <div class="resultCol"><b id="finalP1">0</b><span>Player 1</span></div>
+        <div class="resultVs">vs</div>
+        <div class="resultCol"><b id="finalP2">0</b><span>Player 2</span></div>
+      </div>
+      <div class="resultBtns">
+        <button id="rematchBtn" class="btn btn-primary" type="button">Play again</button>
+        <button class="btn btn-ghost menuBtn" type="button">Choose mode again</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="js/deterministic.js"></script>
+<script src="js/protocol.js"></script>
+<script src="js/net-config.js"></script>
+<script src="js/net.js"></script>
+<script src="js/game.js"></script>
+<script src="js/online.js"></script>
+</body>
+</html>
